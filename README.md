@@ -1,26 +1,57 @@
 # TokenPulse
 
-TokenPulse is a macOS menu-bar app that shows how much of your AI allowance is left, and what recent API spend looks like, without opening each provider's dashboard.
+TokenPulse is a tray app for **macOS** and **Windows** that shows how much of your AI allowance is left, and what recent spend looks like, without opening each provider's dashboard.
 
-It is local-first. ChatGPT, Claude, Cursor, Grok Bot, and OpenAI are separate sources. You turn a source on when you want it. A missing sign-in or a failed refresh leaves the last good numbers in place, then fades them once they are stale. The menu bar shows one block per enabled source. Clicking the menu bar opens a dark Mission Control panel for the details and preferences.
+It is local-first. Claude, Cursor, ChatGPT, OpenAI API, and Grok Bot are separate sources. You turn a source on when you want it. A missing sign-in or a failed refresh leaves the last good numbers in place, then fades them once they are stale. On a Mac the menu bar shows one short block per source you chose to show. On Windows the same text is in the tray tooltip. Clicking the icon opens a dark Mission Control panel with the details and preferences.
 
-Requires **macOS 13** or later and the Swift command-line tools.
+The app is Electron. The original Swift menu-bar app is still in `menubar/` (see [Legacy Swift app](#legacy-swift-app)).
 
-## Install
+---
+
+## Requirements
+
+### Both platforms
+
+- [Node.js](https://nodejs.org/) **20 or newer** (includes `npm`), to build from source
+- Git, to clone
+
+### macOS
+
+- macOS **13** (Ventura) or later
+- Apple Silicon or Intel (the installer builds for the machine you run it on)
+
+### Windows
+
+- Windows **10** or **11**
+- PowerShell 5+ (built in) to run the install script
+- Ability to run a locally built, unsigned NSIS installer (SmartScreen may warn on first run)
+
+---
+
+## Install on macOS
 
 ```bash
 git clone https://github.com/krisrmgua/TokenPulse.git
-cd TokenPulse/menubar
-./install.sh
+cd TokenPulse
+./scripts/install.sh
 ```
 
-That builds `TokenPulse.app`, copies it to `~/Applications/TokenPulse.app`, and starts it at login. Run `./install.sh` again to update. The installer keeps your previous login-start choice when one already exists.
+What `install.sh` does:
 
-Control the installed app with the `tokenpulse` command the installer links into `~/bin`:
+1. `npm install`
+2. `npm run pack:mac` (electron-builder, output under `release/`)
+3. Quits any running TokenPulse (Swift or Electron) and copies the new build to `~/Applications/TokenPulse.app`
+4. Ad-hoc signs it as `com.kris.tokenpulse` and clears the quarantine flag
+5. Links the `tokenpulse` command into `~/bin`
+6. Launches TokenPulse
+
+The first build downloads Electron (about 100 MB) and can take a few minutes. Run `./scripts/install.sh` again to update. Preferences, the OpenAI key, and the spend ledger live in Application Support and survive a reinstall.
+
+Control the installed app with `tokenpulse`:
 
 ```bash
 tokenpulse status     # process and login start
-tokenpulse enable     # start at login
+tokenpulse enable     # start at login (LaunchAgent)
 tokenpulse disable    # leave it running, skip the next login
 tokenpulse start
 tokenpulse stop
@@ -32,74 +63,96 @@ If `tokenpulse` is not found, add `~/bin` to your `PATH`:
 echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zprofile
 ```
 
-A manual build, without installing, is `cd menubar && ./make-app.sh && open TokenPulse.app`. Login start still uses the copy in `~/Applications`.
+**Options → Open at login** in the panel does the same job through the macOS login items list. Use one or the other.
 
-The bundle id is `com.kris.tokenpulse`. Preferences, the menu-bar position, and the login item all use that id. Reinstalling an ad-hoc build changes the code signature, so macOS may ask for your Mac password the next time Cursor or Grok Bot reads the login Keychain. Choose **Always Allow**. That permission lasts until the next reinstall.
+### Gatekeeper
+
+This is an ad-hoc local build, not notarized. If macOS blocks it, right-click `TokenPulse.app` → **Open** → **Open**, or allow it under **System Settings → Privacy & Security**.
+
+Reinstalling changes the ad-hoc signature, so macOS may ask for your Mac password the next time TokenPulse reads **Cursor Safe Storage** from the login Keychain. Choose **Always Allow**. That lasts until the next reinstall.
+
+---
+
+## Install on Windows
+
+In PowerShell:
+
+```powershell
+git clone https://github.com/krisrmgua/TokenPulse.git
+cd TokenPulse
+.\scripts\install.ps1
+```
+
+If PowerShell blocks scripts:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+.\scripts\install.ps1
+```
+
+What `install.ps1` does:
+
+1. `npm install`
+2. `npm run pack:win` (builds an NSIS setup `.exe` under `release\`)
+3. Closes a running TokenPulse, then launches the setup wizard and waits for it
+
+TokenPulse shows up in the **system tray** near the clock. Windows often hides new tray icons: click the **^** overflow arrow and drag TokenPulse onto the taskbar. Hover the icon for the per-source summary. Windows cuts tray tooltips at 127 characters, so turn off **Show in tray** for sources you do not need there.
+
+On first run of the setup `.exe`, SmartScreen may say "Windows protected your PC". Choose **More info** → **Run anyway** if you built it yourself.
+
+Turn on **Options → Open at login** to start TokenPulse with Windows.
+
+To update, `git pull` and run `.\scripts\install.ps1` again. To uninstall, use **Settings → Apps → TokenPulse**. Data under `%APPDATA%\TokenPulse` stays until you delete it.
+
+---
 
 ## How the panel works
 
-The menu-bar item opens on the overview. **Options → Reopen where I left off** is off by default, so the next open returns to the overview. Turn it on to stay on the screen you last used.
+Click the tray or menu-bar icon to open the panel. Right-click it for **Open**, **Refresh now**, and **Quit**. The panel hides when it loses focus. `Esc` hides it, `Cmd/Ctrl+R` refreshes, `Cmd/Ctrl+,` opens Options.
 
-When work spend is shown, the **Today / Month / Proj. eom** chips open a month-to-date spend chart. TokenPulse records each day’s combined work spend locally (`spend-ledger.json`) as you refresh. A solid line climbs with recorded MTD totals; a dotted line continues from today up to projected month-end, ending on a marker at that projected day. Earlier days in the month only appear after TokenPulse has seen them.
+| Area | What it shows |
+|---|---|
+| **Overview** | A card per source: status, today / month / projected dollars, allowance meters, and the **Enable** and **Show in menu bar / tray** switches |
+| **Sidebar** | Each source with a status dot. Green is live, amber is loading or stale, red is an error. Click one for its detail page |
+| **Source page** | Where the credential comes from on this machine, every detail line (per-model spend, cache hit rate, credits), and the account picker |
+| **Spend** | Combined work spend with a month-to-date chart, plus a per-source table |
+| **Options** | Refresh interval, open at login, every source's switches, Cursor allowance, OpenAI Admin key and prepaid balance, data folder, reset |
 
-Each provider has **Enable** and **Show in Menu**. Enable turns the data source on. Show in Menu puts its block on the menu bar. ChatGPT and OpenAI start off. Cursor and Claude start on.
+The **Today / Month / Proj. eom** chips in the tab bar appear once there is work spend. They open the Spend chart. TokenPulse records each day's combined work spend in `spend-ledger.json` as it refreshes. The solid line is recorded month-to-date totals. The dotted line runs from today to projected month-end. Earlier days only appear after TokenPulse has seen them.
 
-**Options → (provider) → Menu bar style** picks the capsule layout for that source. The default is **1 · Divider capsule**. Personal / percent sources offer every layout. Work spend and OpenAI (dollar D/M or balance) only offer **1 · Divider capsule** and **4 · Compact stack**; switching Account to work drops any other pick back to Divider. **Themed provider logos** is off. **Dark menu-bar background** draws a navy capsule behind each block. When any allowance meter on that block hits 0%, including a 5-hour window, that capsule turns a dark red.
+Combined work spend is Claude (local transcripts) + Cursor in **Work spend** mode + ChatGPT in **Work credits** mode. OpenAI API spend shows on its own card and in the per-source table, but is not added to the work total.
 
-**Spend colors** and **Pastel menu-bar colors** are on by default. Each source has its own green / yellow / orange / red steps.
+Claude and Cursor start on. ChatGPT, OpenAI API, and Grok Bot start off. **Reset to defaults** clears source and refresh choices and keeps the saved OpenAI key.
 
-**Reset to defaults** clears layout and visibility choices. It keeps saved API keys.
+A failed remote fetch keeps the last good value. After about two and a half poll intervals the figures fade. Data older than 30 minutes is dropped.
+
+---
 
 ## Credentials
 
-TokenPulse does not have one account of its own. Each source uses a login you already have, or one key you paste. Turning a source on is what asks for it.
+TokenPulse has no account of its own. Each source uses a login you already have, or one key you paste.
 
-| Source | What you need | What happens the first time you enable it |
+| Source | What you need | Notes |
 |---|---|---|
-| OpenAI API | An organization **Admin** key, `sk-admin-…` | The save sheet opens. **Save and test** stores it on this Mac and checks it. Cancel leaves Enable off. |
-| Cursor | Cursor signed in on this Mac | TokenPulse uses that login. It does not ask you to paste a token. macOS may ask for your Mac password to read **Cursor Safe Storage**. |
-| Grok Bot | The same Cursor login | Same prompt as Cursor. Grok Bot and Cursor share one sign-in. |
-| ChatGPT personal | [Codex CLI](https://chatgpt.com/codex) signed in to ChatGPT | Enable starts a read of that session. No key is stored in TokenPulse. |
-| ChatGPT work | The same Codex session, on a workspace that exposes credit usage | Switch **Account → Work credits**. The token stays in `~/.codex/auth.json`. |
-| Claude personal | [Claude Code](https://claude.ai/install.sh) signed in with `/login` | Enable runs the CLI's `/usage` view. Desktop Claude by itself is not enough. |
-| Claude work | Local Claude Code transcripts, plus an optional proxy you configure | Enable scans `~/.claude/projects`. No Anthropic API key is stored. |
-
-### OpenAI Admin key
-
-Create the key in [OpenAI Platform](https://platform.openai.com/) under **Organization → Admin keys**. A normal `sk-proj-` inference key will be rejected.
-
-On a local ad-hoc install the key is stored at:
-
-`~/Library/Application Support/TokenPulse/openai-admin-api-key`
-
-The file is mode `600`, the folder is mode `700`, and Time Machine is asked to skip it. A build signed with a stable identity stores the same key in the login Keychain instead (`com.kris.tokenpulse.openai` / `admin-api-key`, this device only). The key is not written to git, UserDefaults, or the log.
-
-**Options → OpenAI API → Set current prepaid balance…** records the balance you see in OpenAI Billing. TokenPulse subtracts newly reported organization costs from that number. Reset it after you add credits. OpenAI's cost API lags, so the Billing page stays the source of truth.
-
-Verify without printing the key:
-
-```bash
-~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --openai-check
-```
+| Claude | Claude Code transcripts on this machine | Scans `~/.claude/projects` (also `$CLAUDE_CONFIG_DIR/projects`). Prices them with `pricing.json`. No Anthropic key is stored |
+| Cursor | Cursor signed in on this machine | Reads the Cursor login from its `state.vscdb`. Work mode shows your Dashboard spend; personal mode shows the included allowance as percent left |
+| Grok Bot | The same Cursor login | Weekly Sand allowance, as percent left |
+| ChatGPT personal | [Codex CLI](https://chatgpt.com/codex) signed in to ChatGPT | 5-hour and weekly allowance, percent left |
+| ChatGPT work | The same Codex session, on a workspace that exposes credit usage | Switch the account to **Work credits**. Dollar figure is an estimate |
+| OpenAI API | An organization **Admin** key, `sk-admin-…` | Turning it on asks for the key under Options |
 
 ### Cursor and Grok Bot
 
-Sign in to Cursor. TokenPulse reads `cursorAuth/accessToken` from:
+The Cursor login lives at:
 
-`~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
+| OS | Path |
+|---|---|
+| macOS | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` |
+| Windows | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` |
 
-When Cursor encrypted that token, reading it needs the **Cursor Safe Storage** password from your login Keychain. That is the Mac password sheet. It is not an OpenAI prompt, and disabling OpenAI does not stop it. Turning Cursor and Grok Bot off does.
+TokenPulse opens it read-only. When Cursor encrypted the token, macOS needs the **Cursor Safe Storage** password from the login Keychain (that is the Mac password sheet), and Windows unwraps it with DPAPI for your user. Turning Cursor and Grok Bot off stops those reads.
 
-Work mode shows today's and this month's Dashboard spend for your user id, not a team-wide total. Personal mode shows the included Pro allowance as percent remaining. The default personal allowance is $20. Change it under **Options → Cursor**.
-
-Grok Bot shows the weekly Sand allowance from the same Cursor account, as percent left.
-
-The ChatGPT and Grok Bot marks ship inside the app (`menubar/Artwork/icon-chatgpt.png` and `icon-grokbot.png`). A Mac does not need those apps installed for the logos to show. Cursor, Claude, and the OpenAI API row use the built-in symbols.
-
-```bash
-~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --cursor-check
-~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --grok-bot-check
-```
+The default personal Cursor allowance is $20. Change it under **Options → Cursor**.
 
 ### ChatGPT
 
@@ -110,129 +163,78 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 codex
 ```
 
-Finish ChatGPT sign-in, then `/status` should show the weekly allowance. TokenPulse reads that same allowance. Personal mode shows percent left and the local reset time. The search path is `TOKENPULSE_CODEX_PATH`, `~/.local/bin/codex`, `~/bin/codex`, Homebrew, then the Codex binary inside the ChatGPT app.
+The search path is `TOKENPULSE_CODEX_PATH`, then the usual install locations (`~/.local/bin`, `~/bin`, Homebrew on Mac; `%LOCALAPPDATA%\Programs\codex` and npm's global folder on Windows). Work mode reads workspace credits for the signed-in account. If the workspace does not publish a dollar rate, TokenPulse uses the public rate card ($0.04 per credit).
 
-Work mode reads workspace credit usage for the signed-in Codex account and shows an API-equivalent dollar estimate. That figure is an estimate, not an invoice. If the workspace does not publish a dollar rate, TokenPulse uses the public rate card ($0.04 per credit).
+### OpenAI Admin key
 
-```bash
-~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --chatgpt-check
-~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --chatgpt-work-check
-```
+Create the key in [OpenAI Platform](https://platform.openai.com/) under **Organization → Admin keys**. A normal `sk-proj-` key is rejected. Paste it in **Options → OpenAI API** and click **Save and test**. TokenPulse checks it against the Costs API before turning the source on. A key that fails auth is not kept.
 
-### Claude
+The key is a file in the TokenPulse data folder, `openai-admin-api-key`. On macOS the file is mode `600`, the folder is `700`, and Time Machine is asked to skip it. On Windows the folder is under your user profile. The key is not written to git, prefs, or logs. The filename matches the Swift ad-hoc build, so an existing key carries over.
 
-Work mode prices local transcripts under `~/.claude/projects` with `pricing.json`. Personal mode needs the Claude Code CLI:
+**Current prepaid balance** records the balance you see in OpenAI Billing. TokenPulse subtracts newly reported costs from it. Set it again after you add credits. OpenAI's cost API lags, so the Billing page stays the source of truth.
 
-```bash
-curl -fsSL https://claude.ai/install.sh | bash
-claude
-```
+---
 
-Complete `/login` with the Pro or Max account, then `/usage`. TokenPulse drives that same `/usage` view. It does not read Claude's OAuth token. The search path is `TOKENPULSE_CLAUDE_PATH`, `~/.local/bin/claude`, `~/bin/claude`, Homebrew, then the Claude Code binary bundled with the desktop app.
+## Data
 
-```bash
-~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --claude-check
-```
-
-### Optional spend proxy
-
-Claude **work** mode starts from the transcripts on this Mac. Those miss calls made on another computer, and they miss calls that never landed in `~/.claude/projects`. A spend proxy is an HTTPS service you already have that returns your own billed model spend. TokenPulse can use that instead of the local count. There is no built-in host, and there is no switch in the panel. Other sources (ChatGPT, Cursor, Grok Bot, OpenAI, Claude personal) do not use it.
-
-When both a URL and an unexpired key are present, TokenPulse replaces Claude work **Today**, **Month**, the per-model dollars, and the Opus share taken from those models. Sessions, cache-hit rate, dollars per session, the efficiency score, streaks, and history stay on the local transcripts. The proxy has no per-session detail, so those cannot move.
-
-Each refresh is a `GET` of the URL you configured. TokenPulse adds `start_date` (the first day of the local month) and `end_date` (today) and sends the key as `Authorization: Bearer`. The call waits at most 10 seconds and runs at most every 5 minutes. A successful response is kept for 30 minutes if a later call fails. Any other failure leaves the transcript numbers in place.
-
-The response is your own spend. TokenPulse reads:
-
-| Field | Use |
+| OS | Folder |
 |---|---|
-| `end_user_id` | Identity string. `--proxy-check` masks it. |
-| `start_date`, `end_date` | Window the service reported. |
-| `total_spend` | Month dollars. |
-| `daily_spend` | Today dollars. Optional. |
-| `total_requests` | Request count. |
-| `by_model[]` | `model`, `spend`, and `api_requests` for each model. |
+| macOS | `~/Library/Application Support/TokenPulse/` |
+| Windows | `%APPDATA%\TokenPulse\` |
 
-Set the URL and the key path outside the repo. Both are required. An `http://` URL is ignored.
-
-```bash
-# One https URL, no extra text.
-printf '%s\n' 'https://example.internal/spend/end_user' > \
-  "$HOME/Library/Application Support/TokenPulse/proxy-spend-url"
-
-# One path to the key cache. ~ is expanded.
-printf '%s\n' "$HOME/.config/tokenpulse/proxy-keys.json" > \
-  "$HOME/Library/Application Support/TokenPulse/proxy-keys-path"
-```
-
-The same values can be environment variables instead of those files: `TOKENPULSE_PROXY_SPEND_URL` and `TOKENPULSE_PROXY_KEYS_FILE`. The environment wins when both are set. If you set neither key path, TokenPulse looks at `~/.config/tokenpulse/proxy-keys.json`.
-
-The key file is a cache some other tool writes. TokenPulse never logs in and never refreshes it. The shape is:
-
-```json
-{
-  "staging": {
-    "api_key": "the key",
-    "expires": "2026-08-16T17:49:51Z"
-  }
-}
-```
-
-`expires` is RFC3339. Fractional seconds are fine. A missing file, a missing `staging` key, or an expired key turns the proxy off.
-
-Quit TokenPulse and start it again after you add the files. The login agent does not see variables you only exported in a terminal. Put those in the agent's environment if you use the variables instead of the files.
-
-Check the round trip without leaving the key in the output:
-
-```bash
-~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --proxy-check
-```
-
-## Preferences worth knowing
-
-| Item | Default |
+| File | What |
 |---|---|
-| Display | Per source |
-| Menu bar style | 1 · Divider capsule |
-| Themed logos | Off |
-| Dark menu-bar background | On |
-| Spend colors | On |
-| Pastel menu-bar colors | On |
-| Reopen where I left off | Off |
-| Usage refresh | 1 minute for the fast poll. Remote sources also wait at least a few minutes between network calls. |
-| Cursor / Claude | On, work spend |
-| ChatGPT / OpenAI / Grok Bot | Off |
+| `prefs.json` | Source switches, accounts, refresh interval, balance baseline |
+| `spend-ledger.json` | Daily combined work spend, same shape the Swift app writes |
+| `openai-admin-api-key` | OpenAI Admin key, when saved |
+| `pricing.json` | Optional override for model rates. Falls back to the bundled copy |
 
-A failed remote fetch keeps the last good value. After about two and a half poll intervals the figures fade until a refresh succeeds.
+**Options → Open folder** opens it. `TOKENPULSE_PRICING=/path/to/pricing.json` points at a different rate file.
 
-Notifications, when you turn them on, use the title **TokenPulse**. Allowance alerts and an Opus-share alert are separate switches under Options.
+Bundle / app id: `com.kris.tokenpulse`.
+
+---
 
 ## Develop
 
 ```bash
-cd menubar
-swift run TokenPulse --selftest
-swift run TokenPulse --help
-swift test    # needs full Xcode; Command Line Tools can run --selftest only
+npm install
+npm run dev
 ```
 
-`--print` writes a local JSON rollup and does not call the network. Preview flags such as `--menu-preview` need an output path.
+`npm run dev` compiles the main process, starts the Vite UI on `http://127.0.0.1:5173`, and launches Electron with `TOKENPULSE_DEV=1`. In dev the panel does not hide on blur, so it is easier to inspect.
 
-Use the installed binary, not `swift run`, when you want to read or change preferences. `swift run` uses a different defaults domain than `com.kris.tokenpulse`.
-
-```bash
-# Quit the app first.
-~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --reset-options
-```
+| Script | Purpose |
+|---|---|
+| `npm run build` | Production UI + Electron compile |
+| `npm run typecheck` | Type-check the panel and Vite config |
+| `npm start` | Build, then run Electron against `dist/` |
+| `npm run pack:mac` | macOS `.app` + zip under `release/` |
+| `npm run pack:win` | Windows NSIS installer under `release/` |
+| `npm run pack` | Both (needs a toolchain that can build both) |
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `menubar/` | Swift Package Manager app |
+| `electron/` | Main process: tray, panel window, refresh engine, prefs, ledger |
+| `electron/sources/` | One reader per provider (Claude, Cursor, ChatGPT, OpenAI, Grok Bot) |
+| `src/ui/` | Panel HTML, CSS, and TypeScript |
+| `scripts/` | `install.sh` (macOS), `install.ps1` (Windows) |
 | `pricing.json` | Public model rates for the local transcript scan |
-| `bin/tokenpulse` | start, stop, and login-start control |
-| `menubar/Artwork/` | Menu-bar icon |
+| `bin/tokenpulse` | macOS start, stop, and login-start control |
+| `menubar/` | Legacy Swift menu-bar app |
+
+## Legacy Swift app
+
+`menubar/` is the original SwiftPM menu-bar app. It has a few things the Electron port does not yet: menu-bar capsule styles, themed logos, Claude personal `/usage`, the optional spend proxy, notifications, and the `--*-check` command-line probes. Build it with:
+
+```bash
+cd menubar
+./install.sh
+```
+
+Both builds install to `~/Applications/TokenPulse.app` with the same bundle id and share the same data folder, so whichever you installed last is the one that runs.
 
 ## License
 

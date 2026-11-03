@@ -4,6 +4,14 @@ menubar/TokenPulse.app/
 *.xcodeproj
 .swiftpm/
 
+# Electron / Node
+node_modules/
+dist/
+dist-electron/
+release/
+assets/
+*.log
+
 # Python
 __pycache__/
 *.pyc
@@ -12,6 +20,17 @@ venv/
 
 # Aggregator local DB (runtime state, not source)
 aggregator/*.db
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Electron / Node
+node_modules/
+dist/
+dist-electron/
+release/
 
 # macOS
 .DS_Store

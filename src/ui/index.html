@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TokenPulse</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="top" id="top">
+        <div class="brand-row">
+          <svg class="mark" viewBox="196 196 632 632" aria-hidden="true">
+            <circle cx="512" cy="512" r="276" class="mark-track" />
+            <path class="mark-arc" d="M 723.4 334.6 A 276 276 0 1 0 689.4 723.4" />
+            <polyline class="mark-pulse" points="245,512 385,512 448,389 545,654 610,512 780,512" />
+          </svg>
+          <div>
+            <div class="brand">TokenPulse</div>
+            <div class="sub" id="updated">Connecting to your sources…</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <span class="spinner hidden" id="spinner" aria-label="Refreshing"></span>
+          <button class="btn icon" id="btn-back" title="Back" hidden>Back</button>
+          <button class="btn icon" id="btn-refresh" title="Refresh (Ctrl/Cmd+R)" aria-label="Refresh">↻</button>
+          <button class="btn icon" id="btn-options" title="Preferences" aria-label="Preferences">⚙</button>
+        </div>
+      </header>
+      <nav class="tabbar" id="tabbar">
+        <div class="tabs">
+          <button class="tab" data-route="overview">Overview</button>
+          <button class="tab" data-route="spend">Spend</button>
+          <button class="tab" data-route="options">Options</button>
+        </div>
+        <div class="chips" id="chips"></div>
+      </nav>
+      <div class="body">
+        <aside class="sidebar" id="sidebar"></aside>
+        <main class="content" id="content"><div id="content-inner"></div></main>
+      </div>
+      <footer class="foot" id="foot">
+        <span id="foot-left"></span>
+        <button class="link" id="btn-quit">Quit</button>
+      </footer>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
