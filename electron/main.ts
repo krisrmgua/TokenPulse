@@ -118,7 +118,7 @@ function togglePanel(): void {
 function withIcons(st: AppState): AppState {
   return {
     ...st,
-    icons: providerIconMap(32, st.prefs.themedProviderLogos),
+    icons: providerIconMap(64, st.prefs.themedProviderLogos),
   };
 }
 

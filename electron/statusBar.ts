@@ -241,7 +241,8 @@ function blitIcon(
 }
 
 function chromeHeight(design: BarDesign): number {
-  return isStacked(design) || design === "baseline" ? 24 : 22;
+  // Slightly taller than Swift 22/24 so the larger marks still sit with padding.
+  return isStacked(design) || design === "baseline" ? 28 : 26;
 }
 
 /**
@@ -253,9 +254,10 @@ export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Elect
   }
 
   const scale = 2; // draw @2x then set scaleFactor
-  const iconSize = 14 * scale;
+  // Swift uses 14pt increased; we paint a bit larger so Artwork cutouts read clearly.
+  const iconSize = 18 * scale;
   const gap = 5 * scale;
-  const pad = 7 * scale;
+  const pad = 6 * scale;
   const heights = blocks.map((b) => chromeHeight(b.design) * scale);
   const height = Math.max(...heights);
   const valueScale = 2;

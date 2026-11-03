@@ -32,18 +32,19 @@ export function providerIconRgba(
 ): Buffer {
   const rgba = Buffer.alloc(size * size * 4);
   const ink = themed ? ART_CYAN : ART_INK;
+  // Swift themed tile inset is ~5/32; keep the mark large so it doesn't look like a pinhead.
   if (themed) fillRoundedRect(rgba, size, 0, 0, size, size, size * 0.22, ART_NAVY, 255);
 
   if (id === "chatgpt" || id === "grokbot") {
     const src = loadPng(id);
     if (src) {
-      const inset = themed ? Math.round(size * 0.18) : Math.round(size * 0.06);
-      const inner = Math.max(8, size - inset * 2);
+      const inset = themed ? Math.max(2, Math.round(size * 0.1)) : Math.max(1, Math.round(size * 0.02));
+      const inner = Math.max(10, size - inset * 2);
       // Crop Grok's packaged tile a bit before resize.
       let cut = src;
       if (id === "grokbot") {
         const { width, height } = src.getSize();
-        const crop = Math.round(Math.min(width, height) * 0.12);
+        const crop = Math.round(Math.min(width, height) * 0.1);
         cut = src.crop({
           x: crop,
           y: crop,
@@ -168,21 +169,21 @@ function drawGlyph(
 ): void {
   const cx = (dim - 1) / 2;
   const cy = (dim - 1) / 2;
-  const stroke = Math.max(1.2, dim * 0.1);
+  // Fill most of the tile — Swift SF symbols at pointSize 21 in a 32px tile read large.
+  const stroke = Math.max(1.6, dim * 0.12);
   if (id === "cursor") {
-    // Isometric cube
-    const u = dim * 0.22;
+    const u = dim * 0.3;
     line(rgba, dim, cx, cy - u * 1.15, cx + u, cy - u * 0.45, ink, stroke);
     line(rgba, dim, cx + u, cy - u * 0.45, cx + u, cy + u * 0.45, ink, stroke);
     line(rgba, dim, cx + u, cy + u * 0.45, cx, cy + u * 1.15, ink, stroke);
     line(rgba, dim, cx, cy + u * 1.15, cx - u, cy + u * 0.45, ink, stroke);
     line(rgba, dim, cx - u, cy + u * 0.45, cx - u, cy - u * 0.45, ink, stroke);
     line(rgba, dim, cx - u, cy - u * 0.45, cx, cy - u * 1.15, ink, stroke);
-    line(rgba, dim, cx - u, cy - u * 0.45, cx, cy, ink, stroke * 0.85);
-    line(rgba, dim, cx + u, cy - u * 0.45, cx, cy, ink, stroke * 0.85);
-    line(rgba, dim, cx, cy, cx, cy + u * 1.15, ink, stroke * 0.85);
+    line(rgba, dim, cx - u, cy - u * 0.45, cx, cy, ink, stroke * 0.9);
+    line(rgba, dim, cx + u, cy - u * 0.45, cx, cy, ink, stroke * 0.9);
+    line(rgba, dim, cx, cy, cx, cy + u * 1.15, ink, stroke * 0.9);
   } else if (id === "claude") {
-    const r = dim * 0.32;
+    const r = dim * 0.38;
     for (const deg of [0, 60, 120]) {
       const a = (deg * Math.PI) / 180;
       line(
@@ -197,17 +198,15 @@ function drawGlyph(
       );
     }
   } else if (id === "openai") {
-    ring(rgba, dim, cx, cy, dim * 0.3, stroke, ink);
-    // inner loop
+    ring(rgba, dim, cx, cy, dim * 0.36, stroke, ink);
     for (let t = 0; t < 1; t += 0.02) {
       const a = t * Math.PI * 2;
-      const x = cx + dim * 0.16 * Math.cos(a);
-      const y = cy + dim * 0.1 * Math.sin(a * 2);
-      stamp(rgba, dim, x, y, ink, stroke * 0.45);
+      const x = cx + dim * 0.2 * Math.cos(a);
+      const y = cy + dim * 0.12 * Math.sin(a * 2);
+      stamp(rgba, dim, x, y, ink, stroke * 0.5);
     }
   } else {
-    // fallback bloom
-    ring(rgba, dim, cx, cy, dim * 0.28, stroke, ink);
+    ring(rgba, dim, cx, cy, dim * 0.34, stroke, ink);
   }
 }
 
