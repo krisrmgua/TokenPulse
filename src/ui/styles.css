@@ -289,6 +289,34 @@ button {
 .pmark {
   flex: none;
   display: block;
+  border-radius: 22%;
+}
+
+.pmark.placeholder {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+
+.provider-btn {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  appearance: none;
+  color: inherit;
+  font: inherit;
+}
+
+.provider-btn:hover {
+  border-color: rgba(88, 210, 236, 0.45);
+}
+
+.design-list {
+  gap: 6px;
+}
+
+.design-choice {
+  display: flex;
+  width: 100%;
 }
 
 .dot {

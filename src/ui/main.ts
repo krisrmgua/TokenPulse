@@ -1,3 +1,4 @@
+import { barDesignTitle, barDesignsFor, type BarDesign } from "../../electron/barDesign";
 import type {
   AccountMode,
   ActionResult,
@@ -36,7 +37,7 @@ declare global {
 }
 
 type MainRoute = "overview" | "spend" | "efficiency" | "scoreboard" | "alerts" | "options";
-type Route = MainRoute | `source:${SourceId}`;
+type Route = MainRoute | `source:${SourceId}` | `settings:${SourceId}`;
 type NoticeKind = "ok" | "warn" | "err";
 
 /** Sidebar / tray provider order — matches Swift Mission Control. */
@@ -45,8 +46,6 @@ const PROVIDER_ORDER: SourceId[] = ["chatgpt", "cursor", "grokbot", "openai", "c
 const REFRESH_CHOICES = [1, 2, 3, 5, 10, 15, 30];
 const RESET_CONFIRM_MS = 4000;
 const CHART_COLORS = { actual: "#58d2ec", projected: "#f0cc85", today: "#75e0b3" };
-const ART_CYAN = "#58d2ec";
-const ART_NAVY = "#0e1929";
 
 const api = window.tokenpulse;
 
@@ -146,51 +145,14 @@ function orderedSources(st: AppState): SourceSnapshot[] {
   return PROVIDER_ORDER.map((id) => byId.get(id)).filter((s): s is SourceSnapshot => Boolean(s));
 }
 
-// ---------- provider marks (inline SVG, themed cyan on navy) ----------
+// ---------- provider marks (Artwork / SF glyphs from main) ----------
 
 function providerMark(id: SourceId, size: number): string {
-  const inset = size * 0.22;
-  const s = size - inset * 2;
-  const cx = inset + s / 2;
-  const cy = inset + s / 2;
-  const c = ART_CYAN;
-  let glyph = "";
-  switch (id) {
-    case "chatgpt": {
-      const r = s * 0.38;
-      const pts: string[] = [];
-      for (let i = 0; i < 6; i++) {
-        const a = (Math.PI / 3) * i - Math.PI / 2;
-        pts.push(`${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`);
-      }
-      glyph = `<polygon points="${pts.join(" ")}" fill="none" stroke="${c}" stroke-width="${Math.max(1.2, s * 0.1)}" stroke-linejoin="round"/><circle cx="${cx}" cy="${cy}" r="${s * 0.12}" fill="${c}"/>`;
-      break;
-    }
-    case "cursor": {
-      const u = s * 0.28;
-      glyph = `<path d="M ${cx} ${cy - u * 1.2} L ${cx + u} ${cy - u * 0.5} L ${cx + u} ${cy + u * 0.5} L ${cx} ${cy + u * 1.2} L ${cx - u} ${cy + u * 0.5} L ${cx - u} ${cy - u * 0.5} Z" fill="none" stroke="${c}" stroke-width="${Math.max(1.2, s * 0.1)}" stroke-linejoin="round"/><path d="M ${cx - u} ${cy - u * 0.5} L ${cx} ${cy} L ${cx + u} ${cy - u * 0.5} M ${cx} ${cy} L ${cx} ${cy + u * 1.2}" fill="none" stroke="${c}" stroke-width="${Math.max(1, s * 0.08)}"/>`;
-      break;
-    }
-    case "claude": {
-      const r = s * 0.36;
-      glyph = [0, 60, 120]
-        .map((deg) => {
-          const a = (deg * Math.PI) / 180;
-          return `<line x1="${cx - r * Math.cos(a)}" y1="${cy - r * Math.sin(a)}" x2="${cx + r * Math.cos(a)}" y2="${cy + r * Math.sin(a)}" stroke="${c}" stroke-width="${Math.max(1.4, s * 0.12)}" stroke-linecap="round"/>`;
-        })
-        .join("");
-      break;
-    }
-    case "openai":
-      glyph = `<circle cx="${cx}" cy="${cy}" r="${s * 0.34}" fill="none" stroke="${c}" stroke-width="${Math.max(1.2, s * 0.1)}"/><path d="M ${cx - s * 0.22} ${cy} Q ${cx} ${cy - s * 0.28} ${cx + s * 0.22} ${cy} Q ${cx} ${cy + s * 0.28} ${cx - s * 0.22} ${cy}" fill="none" stroke="${c}" stroke-width="${Math.max(1, s * 0.08)}"/>`;
-      break;
-    case "grokbot": {
-      const r = s * 0.32;
-      glyph = `<line x1="${cx - r}" y1="${cy - r}" x2="${cx + r}" y2="${cy + r}" stroke="${c}" stroke-width="${Math.max(1.5, s * 0.12)}" stroke-linecap="round"/><line x1="${cx + r}" y1="${cy - r}" x2="${cx - r}" y2="${cy + r}" stroke="${c}" stroke-width="${Math.max(1.5, s * 0.12)}" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="${s * 0.1}" fill="${c}"/>`;
-      break;
-    }
+  const src = state?.icons?.[id];
+  if (src) {
+    return `<img class="pmark" src="${src}" width="${size}" height="${size}" alt="" />`;
   }
-  return `<svg class="pmark" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><rect width="${size}" height="${size}" rx="${size * 0.22}" fill="${ART_NAVY}"/>${glyph}</svg>`;
+  return `<span class="pmark placeholder" style="width:${size}px;height:${size}px"></span>`;
 }
 
 // ---------- shared fragments ----------
@@ -450,11 +412,11 @@ function sourceView(st: AppState, id: SourceId): string {
   }
   if (id === "openai" && !st.openAIKeyConfigured) {
     parts.push(
-      `<div class="form-row"><button class="btn primary" data-act="go" data-route="options">Add OpenAI Admin key…</button></div>`,
+      `<div class="form-row"><button class="btn primary" data-act="go" data-route="settings:openai">Add OpenAI Admin key…</button></div>`,
     );
   }
   parts.push(
-    `<div class="form-row"><button class="btn" data-act="go" data-route="options">Provider options</button></div>`,
+    `<div class="form-row"><button class="btn" data-act="go" data-route="settings:${id}">Provider options</button></div>`,
   );
   return parts.join("");
 }
@@ -526,60 +488,35 @@ function optionsView(st: AppState): string {
   parts.push(`<div class="opt-section"><h3>Check usage every</h3><div class="card">
     <div class="form-row">
       <select data-act="refresh-minutes" aria-label="Refresh interval">${refreshOpts}</select>
-      <span class="muted">Remote sources still wait a few minutes between network calls.</span>
     </div>
+  </div></div>`);
+
+  parts.push(`<div class="opt-section"><h3>Menu bar</h3><div class="card">
+    <label class="toggle"><input type="checkbox" data-act="themed-logos" ${p.themedProviderLogos ? "checked" : ""} /> Themed provider logos</label>
+    <label class="toggle"><input type="checkbox" data-act="dark-bar" ${p.darkBarBackground ? "checked" : ""} /> Dark menu-bar background</label>
+    <label class="toggle"><input type="checkbox" data-act="spend-colors" ${p.spendColorsEnabled ? "checked" : ""} /> Spend colors</label>
+    <label class="toggle"><input type="checkbox" data-act="pastel-bar" ${p.pastelBarColors ? "checked" : ""} ${p.spendColorsEnabled ? "" : "disabled"} /> Pastel menu-bar colors</label>
     <label class="toggle"><input type="checkbox" data-act="login" ${p.openAtLogin ? "checked" : ""} /> Open at login</label>
   </div></div>`);
 
-  parts.push(`<div class="opt-section"><h3>Sources</h3>`);
+  parts.push(`<div class="opt-section"><h3>Providers</h3><div class="muted" style="margin-bottom:6px">Each provider has its own Enable, Show in Menu, account mode, and menu-bar style.</div>`);
   for (const s of orderedSources(st)) {
-    parts.push(`<div class="card opt-source">
+    const mode =
+      s.accounts.length > 1 ? ` · ${s.account === "work" ? "Work" : "Personal"}` : "";
+    const style = barDesignTitle(st.prefs.sources[s.id].barDesign);
+    parts.push(`<button class="card opt-source provider-btn" data-act="go" data-route="settings:${s.id}">
       <div class="card-head">
-        ${providerMark(s.id, 16)}
-        <span class="name">${escapeHtml(s.name)}</span>
+        ${providerMark(s.id, 20)}
+        <div class="card-titles">
+          <span class="name">${escapeHtml(s.name)}${escapeHtml(mode)}</span>
+          <span class="muted">${s.enabled ? "On" : "Off"} · ${escapeHtml(style)}</span>
+        </div>
         <span class="spacer"></span>
-        <button class="link" data-act="go" data-route="source:${s.id}">Open ›</button>
+        <span class="link">Configure ›</span>
       </div>
-      <div class="form-row">${togglesHtml(s)}${accountSelectHtml(s)}</div>
-    </div>`);
+    </button>`);
   }
   parts.push(`</div>`);
-
-  parts.push(`<div class="opt-section"><h3>Cursor</h3><div class="card">
-    <div class="form-row">
-      <span>Personal included allowance</span>
-      <input type="number" id="opt-allowance" min="1" step="1" value="${p.cursorPersonalAllowanceUSD}" />
-      <button class="btn" data-act="save-allowance">Save</button>
-    </div>
-    <div class="muted">Used when Cursor does not report a plan limit.</div>
-  </div></div>`);
-
-  const keyBlock = st.openAIKeyConfigured
-    ? `<div class="form-row">
-        <span class="status-line ok">Admin key saved.</span>
-        <span class="spacer"></span>
-        <button class="btn danger" data-act="delete-key" ${busy ? "disabled" : ""}>Remove key</button>
-      </div>`
-    : `<div class="form-row">
-        <input type="password" id="opt-key" placeholder="sk-admin-…" autocomplete="off" spellcheck="false" />
-        <button class="btn primary" data-act="save-key" ${busy ? "disabled" : ""}>Save and test</button>
-      </div>
-      <div class="muted">Organization Admin key from OpenAI Platform.
-        <button class="link" data-act="open-url" data-url="https://platform.openai.com/settings/organization/admin-keys">Open OpenAI Platform</button></div>`;
-  const bal = p.openAIBalance;
-  const balanceLine = bal
-    ? `<div class="muted">Entered ${money(bal.enteredUSD)} on ${escapeHtml(dateTime(bal.dayStart))}.</div>`
-    : `<div class="muted">Optional prepaid balance countdown.</div>`;
-  parts.push(`<div class="opt-section"><h3>OpenAI API</h3><div class="card">
-    ${keyBlock}
-    <div class="form-row">
-      <span>Current prepaid balance</span>
-      <input type="number" id="opt-balance" min="0" step="0.01" placeholder="0.00" value="${bal ? bal.enteredUSD : ""}" />
-      <button class="btn" data-act="set-balance">Set</button>
-      ${bal ? `<button class="btn" data-act="clear-balance">Clear</button>` : ""}
-    </div>
-    ${balanceLine}
-  </div></div>`);
 
   const resetArmed = Date.now() < resetArmedUntil;
   parts.push(`<div class="opt-section"><h3>Data</h3><div class="card">
@@ -597,10 +534,99 @@ function optionsView(st: AppState): string {
   return parts.join("");
 }
 
+function settingsView(st: AppState, id: SourceId): string {
+  const s = st.sources.find((x) => x.id === id);
+  if (!s) return `<div class="note err">Unknown source.</div>`;
+  const sp = st.prefs.sources[id];
+  // Prefer account-based: work spend sources only get divider/stack (Swift spendCompatible).
+  const spendStyleOnly =
+    id === "openai" || ((id === "cursor" || id === "claude" || id === "chatgpt") && s.account === "work");
+  const allowed = barDesignsFor(spendStyleOnly);
+
+  const parts = [
+    noticeHtml(),
+    `<div class="card-head detail-head">
+      ${providerMark(s.id, 28)}
+      <div><h2>${escapeHtml(s.name)} · options</h2>
+      <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span></div>
+    </div>`,
+    `<div class="card">${togglesHtml(s)}</div>`,
+  ];
+
+  if (s.accounts.length > 1) {
+    parts.push(`<div class="opt-section"><h3>Account</h3><div class="card">${accountSelectHtml(s)}</div></div>`);
+  }
+
+  if (spendStyleOnly) {
+    parts.push(`<div class="opt-section"><h3>Menu bar figures</h3><div class="card">
+      <label class="toggle"><input type="checkbox" data-act="daily-bar" data-id="${id}" ${sp.showDailyInBar ? "checked" : ""} /> Show daily in menu bar</label>
+      <label class="toggle"><input type="checkbox" data-act="monthly-bar" data-id="${id}" ${sp.showMonthlyInBar ? "checked" : ""} /> Show monthly in menu bar</label>
+    </div></div>`);
+  }
+
+  const designRows = allowed
+    .map(
+      (d) => `<label class="toggle design-choice">
+        <input type="radio" name="bar-design-${id}" data-act="bar-design" data-id="${id}" value="${d.id}" ${sp.barDesign === d.id ? "checked" : ""} />
+        ${escapeHtml(`${d.number} · ${d.name}`)}
+      </label>`,
+    )
+    .join("");
+  parts.push(`<div class="opt-section"><h3>Menu bar style</h3><div class="card design-list">${designRows}</div></div>`);
+
+  if (id === "cursor" && s.account === "personal") {
+    parts.push(`<div class="opt-section"><h3>Pro allowance</h3><div class="card">
+      <div class="form-row">
+        <input type="number" id="opt-allowance" min="1" step="1" value="${st.prefs.cursorPersonalAllowanceUSD}" />
+        <button class="btn" data-act="save-allowance">Save</button>
+      </div>
+    </div></div>`);
+  }
+
+  if (id === "openai") {
+    const keyBlock = st.openAIKeyConfigured
+      ? `<div class="form-row">
+          <span class="status-line ok">Admin key saved.</span>
+          <span class="spacer"></span>
+          <button class="btn danger" data-act="delete-key" ${busy ? "disabled" : ""}>Remove key</button>
+        </div>`
+      : `<div class="form-row">
+          <input type="password" id="opt-key" placeholder="sk-admin-…" autocomplete="off" spellcheck="false" />
+          <button class="btn primary" data-act="save-key" ${busy ? "disabled" : ""}>Save and test</button>
+        </div>
+        <div class="muted">Organization Admin key from OpenAI Platform.
+          <button class="link" data-act="open-url" data-url="https://platform.openai.com/settings/organization/admin-keys">Open OpenAI Platform</button></div>`;
+    const bal = st.prefs.openAIBalance;
+    parts.push(`<div class="opt-section"><h3>Admin API</h3><div class="card">
+      ${keyBlock}
+      <div class="form-row">
+        <span>Current prepaid balance</span>
+        <input type="number" id="opt-balance" min="0" step="0.01" placeholder="0.00" value="${bal ? bal.enteredUSD : ""}" />
+        <button class="btn" data-act="set-balance">Set</button>
+        ${bal ? `<button class="btn" data-act="clear-balance">Clear</button>` : ""}
+      </div>
+    </div></div>`);
+  }
+
+  if (id === "grokbot") {
+    parts.push(`<div class="note">Needs Cursor login (same account as Grok Bot).</div>`);
+  }
+
+  parts.push(
+    `<div class="form-row"><button class="btn" data-act="go" data-route="source:${id}">View live data ›</button></div>`,
+  );
+  return parts.join("");
+}
+
 // ---------- render ----------
 
 function isNestedRoute(): boolean {
-  return route.startsWith("source:") || route === "options" || route === "spend";
+  return (
+    route.startsWith("source:") ||
+    route.startsWith("settings:") ||
+    route === "options" ||
+    route === "spend"
+  );
 }
 
 function renderHeader(st: AppState): void {
@@ -667,6 +693,7 @@ function renderContent(st: AppState): void {
   else if (route === "scoreboard") html = scoreboardView(st);
   else if (route === "alerts") html = alertsView();
   else if (route === "options") html = optionsView(st);
+  else if (route.startsWith("settings:")) html = settingsView(st, route.slice("settings:".length) as SourceId);
   else html = sourceView(st, route.slice("source:".length) as SourceId);
   el.inner.innerHTML = html;
   if (focusKeyInput) {
@@ -730,7 +757,7 @@ async function setSource(id: SourceId, patch: Partial<SourcePrefs>): Promise<voi
       kind: "warn",
       text: "OpenAI needs an organization Admin key (sk-admin-…). Paste it below. Saving turns the source on.",
     };
-    route = "options";
+    route = "settings:openai";
     lastMainRoute = "options";
     focusKeyInput = true;
   } else if (!res.ok) {
@@ -844,6 +871,31 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
       await api.setPrefs({ openAtLogin: (target as HTMLInputElement).checked });
       await load(true);
       return;
+    case "themed-logos":
+      await api.setPrefs({ themedProviderLogos: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "dark-bar":
+      await api.setPrefs({ darkBarBackground: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "spend-colors":
+      await api.setPrefs({ spendColorsEnabled: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "pastel-bar":
+      await api.setPrefs({ pastelBarColors: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "daily-bar":
+      if (id) await setSource(id, { showDailyInBar: (target as HTMLInputElement).checked });
+      return;
+    case "monthly-bar":
+      if (id) await setSource(id, { showMonthlyInBar: (target as HTMLInputElement).checked });
+      return;
+    case "bar-design":
+      if (id) await setSource(id, { barDesign: target.value as BarDesign });
+      return;
   }
 }
 
@@ -894,7 +946,11 @@ document.querySelectorAll<HTMLButtonElement>(".tab").forEach((t) => {
 
 el.refresh.addEventListener("click", () => void runAction("refresh", el.refresh));
 el.options.addEventListener("click", () => go("options"));
-el.back.addEventListener("click", () => go(lastMainRoute === "options" || lastMainRoute === "spend" ? "overview" : lastMainRoute));
+el.back.addEventListener("click", () => {
+  if (route.startsWith("settings:")) go("options");
+  else if (route.startsWith("source:")) go("overview");
+  else go(lastMainRoute === "options" || lastMainRoute === "spend" ? "overview" : lastMainRoute);
+});
 el.quit.addEventListener("click", () => void api.quit());
 
 document.addEventListener("keydown", (e) => {

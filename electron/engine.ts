@@ -286,6 +286,13 @@ export class Engine {
       openAIKeyConfigured: this.keys.isConfigured(),
       dataDir: this.meta.dataDir,
       version: this.meta.version,
+      icons: {
+        chatgpt: "",
+        cursor: "",
+        grokbot: "",
+        openai: "",
+        claude: "",
+      },
     };
   }
 
