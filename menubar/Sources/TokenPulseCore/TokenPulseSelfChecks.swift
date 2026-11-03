@@ -761,6 +761,12 @@ enum TokenPulseSelfChecks {
         check("Mission resolves the selected nested screen after refresh", presentation.currentTitle == "Display")
 
         check("menu-bar style IDs preserve the seven selected concepts", StatusBarDesign.allCases.map(\.number) == [1, 2, 3, 4, 6, 7, 9])
+        check("work spend only offers Divider and Compact stack",
+              StatusBarDesign.options(spendOnly: true).map(\.number) == [1, 4])
+        check("work spend keeps Compact stack",
+              StatusBarDesign.resolved(.stack, spendOnly: true) == .stack)
+        check("work spend drops Twin gauges to Divider",
+              StatusBarDesign.resolved(.rings, spendOnly: true) == .divider)
         check("cash has no quota gauge", StatusBarMetric(label: "B", value: "$9.27").fraction == nil)
         check("exhausted allowance remains an empty bar", StatusBarMetric(label: "5H", value: "0%", percent: 0).fraction == 0)
         let weeklyEmpty = StatusBarBlock(provider: "ChatGPT", icon: nil, metrics: [StatusBarMetric(label: "5H", value: "100%", percent: 100), StatusBarMetric(label: "W", value: "0%", percent: 0)])
@@ -772,7 +778,9 @@ enum TokenPulseSelfChecks {
         check("a remaining allowance keeps the normal capsule", !remaining.allowanceEmpty)
         check("spend without a percent is not an empty allowance", !spend.allowanceEmpty)
         func backdropRed(_ block: StatusBarBlock) -> CGFloat {
-            let image = StatusBarArtwork.image(blocks: [block], design: .baseline, dark: true)
+            var painted = block
+            painted.design = .baseline
+            let image = StatusBarArtwork.image(blocks: [painted], dark: true)
             let width = Int(image.size.width), height = Int(image.size.height)
             guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return -1 }
             NSGraphicsContext.saveGraphicsState()
@@ -786,8 +794,11 @@ enum TokenPulseSelfChecks {
         let previousArguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         var arguments = previousArguments
         arguments["statusBarDesign"] = "unknown-future-style"
+        arguments["statusBarDesign.cursor"] = "unknown-future-style"
         UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
         check("unknown menu-bar style safely defaults to design one", Prefs.statusBarDesign == .divider)
+        check("unknown per-provider style falls back to legacy then Divider",
+              Prefs.rawStatusBarDesign(for: .cursor) == .divider)
         arguments["presentationMode"] = "unknown"
         arguments["darkMenuBarBackground"] = "unknown"
         UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
@@ -816,6 +827,23 @@ enum TokenPulseSelfChecks {
             UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
             check("stored menu-bar style resolves \(style.number)", Prefs.statusBarDesign == style)
         }
+        arguments["statusBarDesign.cursor"] = StatusBarDesign.stack.rawValue
+        arguments["statusBarDesign.claude"] = StatusBarDesign.rings.rawValue
+        arguments["cursorAccountMode"] = "work"
+        arguments["claudeAccountMode"] = "personal"
+        UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+        check("per-provider Compact stack survives work mode",
+              Prefs.statusBarDesign(for: .cursor) == .stack)
+        check("per-provider Twin gauges stays on personal Claude",
+              Prefs.statusBarDesign(for: .claude) == .rings)
+        arguments["claudeAccountMode"] = "work"
+        UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+        check("per-provider Twin gauges clamps to Divider on work Claude",
+              Prefs.statusBarDesign(for: .claude) == .divider)
+        check("OpenAI is always spend-only", MenuBarProvider.openAI.isSpendOnly)
+        check("owned keys include per-provider menu-bar styles",
+              Prefs.ownedKeys.contains("statusBarDesign.cursor")
+                && Prefs.ownedKeys.contains("statusBarDesign.openAI"))
         UserDefaults.standard.setVolatileDomain(previousArguments, forName: UserDefaults.argumentDomain)
 
         check("alert thresholds normalize percent labels and duplicates", AllowanceAlertLedger.parseThresholds("5%, 15, 10, 10") == [15,10,5])

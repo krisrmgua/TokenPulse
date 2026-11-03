@@ -7,6 +7,48 @@ enum StatusBarDesign: String, CaseIterable {
     var name: String { switch self { case .divider: return "Divider capsule"; case .rings: return "Twin gauges"; case .baseline: return "Baseline meters"; case .stack: return "Compact stack"; case .focus: return "Focus capsule"; case .lanes: return "Stacked tracks"; case .segments: return "Segmented lanes" } }
     var title: String { "\(number) · \(name)" }
     var stacked: Bool { self == .stack || self == .lanes || self == .segments }
+
+    /// Work spend / OpenAI dollar blocks have no percent meters; only these
+    /// layouts read cleanly without rings, baselines, or gauge tracks.
+    static let spendCompatible: [StatusBarDesign] = [.divider, .stack]
+
+    static func options(spendOnly: Bool) -> [StatusBarDesign] {
+        spendOnly ? spendCompatible : Array(allCases)
+    }
+
+    /// Drop an unsupported personal-style pick down to Divider when the
+    /// account flips to work spend (Compact stack stays).
+    static func resolved(_ design: StatusBarDesign, spendOnly: Bool) -> StatusBarDesign {
+        guard spendOnly else { return design }
+        return spendCompatible.contains(design) ? design : .divider
+    }
+}
+
+/// One menu-bar style slot per source. Account mode filters which designs
+/// that slot may use; the stored rawValue stays the shared design id.
+enum MenuBarProvider: String, CaseIterable {
+    case chatGPT, cursor, claude, grokBot, openAI
+
+    var isSpendOnly: Bool {
+        switch self {
+        case .openAI: return true
+        case .grokBot: return false
+        case .chatGPT: return !Prefs.chatGPTIsPersonal
+        case .cursor: return !Prefs.cursorIsPersonal
+        case .claude: return !Prefs.claudeIsPersonal
+        }
+    }
+
+    static func from(blockProvider: String) -> MenuBarProvider? {
+        switch blockProvider {
+        case "ChatGPT", "ChatGPT work estimate": return .chatGPT
+        case "Cursor": return .cursor
+        case "Claude": return .claude
+        case "Grok Bot": return .grokBot
+        case "OpenAI API": return .openAI
+        default: return nil
+        }
+    }
 }
 
 /// One value retains its unit and optional *remaining* percentage. Money has no
@@ -23,6 +65,7 @@ struct StatusBarBlock {
     let provider: String
     let icon: NSImage?
     let metrics: [StatusBarMetric]
+    var design: StatusBarDesign = .divider
     var stale = false
     var accessibilityLabel: String {
         provider + ": " + metrics.map { "\($0.label) \($0.value)" }.joined(separator: ", ") + (stale ? ", stale data" : "")
@@ -141,21 +184,27 @@ enum StatusBarArtwork {
     /// Same capsule, shifted red, when that provider has a meter at 0%.
     static let exhausted = NSColor(srgbRed: 0.30, green: 0.075, blue: 0.08, alpha: 0.95)
     static let track = NSColor(srgbRed: 0.23, green: 0.32, blue: 0.39, alpha: 1)
-    static func image(blocks: [StatusBarBlock], design: StatusBarDesign,
+    static func image(blocks: [StatusBarBlock],
                       dark: Bool = Prefs.darkBarBackground, enlarged: Bool = Prefs.increaseBarSize,
                       dimStale: Bool = false) -> NSImage {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: design.stacked ? 11 : enlarged ? 12 : 11, weight: .semibold)
-        let labelFont = NSFont.systemFont(ofSize: design.stacked ? 10 : enlarged ? 11 : 10, weight: .semibold)
-        let height: CGFloat = design.stacked ? 24 : 22, iconSize: CGFloat = enlarged ? 14 : 13
-        func width(_ text: String, _ f: NSFont) -> CGFloat { ceil((text as NSString).size(withAttributes: [.font: f]).width) }
-        func rowWidth(_ m: StatusBarMetric) -> CGFloat {
-            width(m.label, labelFont) + 4 + width(m.value, font) + (design == .rings && m.fraction != nil ? 21 : 0)
+        let iconSize: CGFloat = enlarged ? 14 : 13
+        let height: CGFloat = blocks.contains(where: \.design.stacked) ? 24 : 22
+        func fonts(for design: StatusBarDesign) -> (NSFont, NSFont) {
+            let value = NSFont.monospacedDigitSystemFont(ofSize: design.stacked ? 11 : enlarged ? 12 : 11, weight: .semibold)
+            let label = NSFont.systemFont(ofSize: design.stacked ? 10 : enlarged ? 11 : 10, weight: .semibold)
+            return (value, label)
         }
+        func width(_ text: String, _ f: NSFont) -> CGFloat { ceil((text as NSString).size(withAttributes: [.font: f]).width) }
         func contentWidth(_ b: StatusBarBlock) -> CGFloat {
+            let design = b.design
+            let (font, labelFont) = fonts(for: design)
             if design.stacked {
                 let labels = b.metrics.map { width($0.label, labelFont) }.max() ?? 0
                 let values = b.metrics.map { width($0.value, font) }.max() ?? 0
                 return labels + 5 + values + ((design == .lanes || design == .segments) && b.metrics.contains(where: { $0.fraction != nil }) ? 60 : 0)
+            }
+            func rowWidth(_ m: StatusBarMetric) -> CGFloat {
+                width(m.label, labelFont) + 4 + width(m.value, font) + (design == .rings && m.fraction != nil ? 21 : 0)
             }
             return b.metrics.map(rowWidth).reduce(0, +) + CGFloat(max(0, b.metrics.count - 1)) * 13 + (design == .focus ? CGFloat(b.metrics.count) * 8 : 0)
         }
@@ -168,7 +217,7 @@ enum StatusBarArtwork {
             func capsule(_ r: NSRect, _ c: NSColor, radius: CGFloat = 3) {
                 c.setFill(); NSBezierPath(roundedRect: r, xRadius: radius, yRadius: radius).fill()
             }
-            func meter(_ m: StatusBarMetric, x: CGFloat, y: CGFloat, width: CGFloat) {
+            func meter(_ m: StatusBarMetric, x: CGFloat, y: CGFloat, width: CGFloat, design: StatusBarDesign) {
                 guard let fraction = m.fraction else { return }
                 capsule(NSRect(x: x, y: y, width: width, height: 4), track, radius: 2)
                 if fraction > 0 { capsule(NSRect(x: x, y: y, width: width * fraction, height: 4), m.color, radius: 2) }
@@ -178,38 +227,42 @@ enum StatusBarArtwork {
             }
             var x: CGFloat = 0
             for (index, block) in blocks.enumerated() {
+                let design = block.design
+                let (font, labelFont) = fonts(for: design)
+                let blockHeight: CGFloat = design.stacked ? 24 : 22
+                let y0 = (height - blockHeight) / 2
                 NSGraphicsContext.saveGraphicsState()
                 if block.stale && dimStale { NSGraphicsContext.current?.cgContext.setAlpha(0.4) }
-                if dark { capsule(NSRect(x: x, y: 0, width: widths[index], height: height), block.allowanceEmpty ? exhausted : panel, radius: 6) }
-                block.icon?.draw(in: NSRect(x: x + 7, y: (height - iconSize) / 2, width: iconSize, height: iconSize), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                if dark { capsule(NSRect(x: x, y: y0, width: widths[index], height: blockHeight), block.allowanceEmpty ? exhausted : panel, radius: 6) }
+                block.icon?.draw(in: NSRect(x: x + 7, y: y0 + (blockHeight - iconSize) / 2, width: iconSize, height: iconSize), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
                 var cursor = x + 7 + iconSize + 7
                 let labels = block.metrics.map { width($0.label, labelFont) }.max() ?? 0
                 let values = block.metrics.map { width($0.value, font) }.max() ?? 0
                 let minimum = block.metrics.compactMap(\.percent).min()
                 for (i, metric) in block.metrics.enumerated() {
-                    let rowY: CGFloat = design.stacked ? (block.metrics.count == 1 ? 5 : CGFloat(i) * 11 + 1) : 4
+                    let rowY: CGFloat = y0 + (design.stacked ? (block.metrics.count == 1 ? 5 : CGFloat(i) * 11 + 1) : 4)
                     if design.stacked {
                         text(metric.label, x: cursor, y: rowY, font: labelFont, color: MenuBarPalette.secondaryLabel)
                         var valueX = cursor + labels + 5
                         if (design == .lanes || design == .segments) && metric.fraction != nil {
-                            meter(metric, x: valueX, y: rowY + 4, width: 54)
+                            meter(metric, x: valueX, y: rowY + 4, width: 54, design: design)
                             valueX += 60
                         }
                         text(metric.value, x: valueX + values - width(metric.value, font), y: rowY - 1, font: font, color: metric.color)
                         continue
                     }
-                    let w = rowWidth(metric)
-                    if design == .divider && i > 0 { track.setFill(); NSRect(x: cursor - 7, y: 5, width: 1, height: 12).fill() }
+                    let rowWidth = width(metric.label, labelFont) + 4 + width(metric.value, font) + (design == .rings && metric.fraction != nil ? 21 : 0)
+                    if design == .divider && i > 0 { track.setFill(); NSRect(x: cursor - 7, y: y0 + 5, width: 1, height: 12).fill() }
                     if design == .focus {
                         if metric.percent == minimum && minimum != nil {
-                            capsule(NSRect(x: cursor - 3, y: 2, width: w + 6, height: 18), metric.color.withAlphaComponent(0.18))
-                            capsule(NSRect(x: cursor - 3, y: 5, width: 2, height: 12), metric.color, radius: 1)
+                            capsule(NSRect(x: cursor - 3, y: y0 + 2, width: rowWidth + 6, height: 18), metric.color.withAlphaComponent(0.18))
+                            capsule(NSRect(x: cursor - 3, y: y0 + 5, width: 2, height: 12), metric.color, radius: 1)
                         }
                         cursor += 3
                     }
                     if design == .rings, let fraction = metric.fraction {
-                        let center = NSPoint(x: cursor + 8, y: 11)
-                        let ring = NSBezierPath(ovalIn: NSRect(x: cursor, y: 3, width: 16, height: 16)); ring.lineWidth = 2.5
+                        let center = NSPoint(x: cursor + 8, y: y0 + 11)
+                        let ring = NSBezierPath(ovalIn: NSRect(x: cursor, y: y0 + 3, width: 16, height: 16)); ring.lineWidth = 2.5
                         track.setStroke(); ring.stroke()
                         if fraction > 0 {
                             let arc = NSBezierPath(); arc.lineWidth = 2.5; arc.lineCapStyle = .round
@@ -221,8 +274,8 @@ enum StatusBarArtwork {
                     let labelW = width(metric.label, labelFont)
                     text(metric.label, x: cursor, y: rowY + (design == .baseline ? -1 : 1), font: labelFont, color: MenuBarPalette.secondaryLabel)
                     text(metric.value, x: cursor + labelW + 4, y: rowY + (design == .baseline ? -2 : 0), font: font, color: metric.color)
-                    if design == .baseline { meter(metric, x: cursor, y: 18, width: w) }
-                    cursor += w - (design == .rings && metric.fraction != nil ? 21 : 0) + 13 + (design == .focus ? 5 : 0)
+                    if design == .baseline { meter(metric, x: cursor, y: y0 + 18, width: rowWidth, design: design) }
+                    cursor += rowWidth - (design == .rings && metric.fraction != nil ? 21 : 0) + 13 + (design == .focus ? 5 : 0)
                 }
                 NSGraphicsContext.restoreGraphicsState()
                 x += widths[index] + 5

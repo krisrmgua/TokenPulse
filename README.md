@@ -44,7 +44,7 @@ When work spend is shown, the **Today / Month / Proj. eom** chips open a month-t
 
 Each provider has **Enable** and **Show in Menu**. Enable turns the data source on. Show in Menu puts its block on the menu bar. ChatGPT and OpenAI start off. Cursor and Claude start on.
 
-**Options → Menu bar style** picks the capsule layout. The default is **1 · Divider capsule**. **Themed provider logos** is off. **Dark menu-bar background** draws a navy capsule behind each block. When any allowance meter on that block hits 0%, including a 5-hour window, that capsule turns a dark red.
+**Options → (provider) → Menu bar style** picks the capsule layout for that source. The default is **1 · Divider capsule**. Personal / percent sources offer every layout. Work spend and OpenAI (dollar D/M or balance) only offer **1 · Divider capsule** and **4 · Compact stack**; switching Account to work drops any other pick back to Divider. **Themed provider logos** is off. **Dark menu-bar background** draws a navy capsule behind each block. When any allowance meter on that block hits 0%, including a 5-hour window, that capsule turns a dark red.
 
 **Spend colors** and **Pastel menu-bar colors** are on by default. Each source has its own green / yellow / orange / red steps.
 

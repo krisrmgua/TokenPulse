@@ -230,7 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let blocks = statusBarBlocks()
         if !blocks.isEmpty {
             button.attributedTitle = NSAttributedString(string: "")
-            button.image = StatusBarArtwork.image(blocks: blocks, design: Prefs.statusBarDesign, dimStale: staleBlinkDimmed)
+            button.image = StatusBarArtwork.image(blocks: blocks, dimStale: staleBlinkDimmed)
             button.image?.isTemplate = false
             button.imagePosition = .imageOnly
             button.imageScaling = .scaleNone
@@ -264,18 +264,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             if Prefs.showMonthlyInBar(for: source) { metrics.append(StatusBarMetric(label: "M", value: Fmt.money(month), color: color(colors.level(for: month, policyUSD: policy), colors.goodStyle))) }
             return metrics
         }
+        func design(for provider: MenuBarProvider) -> StatusBarDesign {
+            Prefs.statusBarDesign(for: provider)
+        }
         var blocks: [StatusBarBlock] = []
         let chatIcon = ProviderArtwork.image("ChatGPT", original: chatGPTIcon() ?? glyphImage(Self.openAIGlyphs))
         if let work = lastBarChatGPT.work {
-            blocks.append(StatusBarBlock(provider: "ChatGPT work estimate", icon: chatIcon, metrics: spend(work.todayEstimatedUSD, work.estimatedUSD, Prefs.chatGPTWorkColors(), ChatGPTWorkUsageSnapshot.proPlanMonthlyUSD, .chatGPTWork, pending: work.todayIsPending), stale: lastBarChatGPT.stale))
+            blocks.append(StatusBarBlock(provider: "ChatGPT work estimate", icon: chatIcon, metrics: spend(work.todayEstimatedUSD, work.estimatedUSD, Prefs.chatGPTWorkColors(), ChatGPTWorkUsageSnapshot.proPlanMonthlyUSD, .chatGPTWork, pending: work.todayIsPending), design: design(for: .chatGPT), stale: lastBarChatGPT.stale))
         } else if let personal = lastBarChatGPT.personal {
             var metrics: [StatusBarMetric] = []
             if let session = personal.session { metrics.append(quota("5H", session.percentLeft, Prefs.chatGPTColors())) }
             metrics.append(quota("W", personal.percentLeft, Prefs.chatGPTColors()))
-            blocks.append(StatusBarBlock(provider: "ChatGPT", icon: chatIcon, metrics: metrics, stale: lastBarChatGPT.stale))
+            blocks.append(StatusBarBlock(provider: "ChatGPT", icon: chatIcon, metrics: metrics, design: design(for: .chatGPT), stale: lastBarChatGPT.stale))
         }
         for segment in lastBarSegments {
             let provider = segment.glyphNames == Self.cursorGlyphs ? "Cursor" : segment.glyphNames == Self.claudeGlyphs ? "Claude" : segment.glyphNames == Self.grokBotGlyphs ? "Grok Bot" : "OpenAI API"
+            let slot = MenuBarProvider.from(blockProvider: provider) ?? .openAI
             let original = provider == "Grok Bot" ? grokBotIcon() ?? glyphImage(segment.glyphNames) : provider == "OpenAI API" && Prefs.themedProviderLogos ? chatGPTIcon() ?? glyphImage(segment.glyphNames) : glyphImage(segment.glyphNames)
             var metrics: [StatusBarMetric] = []
             switch segment.display {
@@ -287,7 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 if let weekly { metrics.append(quota("W", weekly.percentLeft, colors, value: weekly.personalBarPercent)) }
             case .remainingBalance(let balance, let colors): metrics = [StatusBarMetric(label: "B", value: balance.map(Fmt.money) ?? "—", color: balance.map { color(colors.level(for: $0), colors.goodStyle) } ?? MenuBarPalette.secondaryLabel)]
             }
-            blocks.append(StatusBarBlock(provider: provider, icon: ProviderArtwork.image(provider, original: original), metrics: metrics, stale: segment.stale))
+            blocks.append(StatusBarBlock(provider: provider, icon: ProviderArtwork.image(provider, original: original), metrics: metrics, design: design(for: slot), stale: segment.stale))
         }
         return blocks
     }
@@ -451,9 +455,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         mission.invoke = { [weak self] item in
             guard let self, let action = item.action else { return }
             let name = NSStringFromSelector(action)
-            if name == "setStatusBarDesign:", let raw = item.representedObject as? String {
+            if name == "setStatusBarDesign:" {
                 var domain = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
-                domain["statusBarDesign"] = raw
+                if let info = item.representedObject as? [String: String],
+                   let provider = info["provider"], let design = info["design"] {
+                    domain["statusBarDesign.\(provider)"] = design
+                    domain["statusBarDesign"] = design
+                } else if let raw = item.representedObject as? String {
+                    domain["statusBarDesign"] = raw
+                }
                 UserDefaults.standard.setVolatileDomain(domain, forName: UserDefaults.argumentDomain)
                 self.seedMissionFixtures()
             } else if name == "toggleThemedProviderLogos" {
@@ -1317,17 +1327,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         for item in notificationMenu.items where item.action != nil { item.target = self }
         notifications.submenu = notificationMenu
         sub.addItem(notifications)
-        let designItem = NSMenuItem(title: "Menu bar style", action: nil, keyEquivalent: "")
-        let designMenu = NSMenu(title: "Menu bar style")
-        for design in StatusBarDesign.allCases {
-            let choice = NSMenuItem(title: design.title, action: #selector(setStatusBarDesign(_:)), keyEquivalent: "")
-            choice.representedObject = design.rawValue
-            choice.state = Prefs.statusBarDesign == design ? .on : .off
-            choice.target = self
-            designMenu.addItem(choice)
-        }
-        designItem.submenu = designMenu
-        sub.addItem(designItem)
         sub.addItem(toggle("Themed provider logos", #selector(toggleThemedProviderLogos), Prefs.themedProviderLogos))
         sub.addItem(.separator())
         sub.addItem(toggle("Spend colors",
@@ -1392,6 +1391,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         sub.addItem(.separator())
+        sub.addItem(menuBarStyleItem(for: .chatGPT))
         sub.addItem(colorsMenuItem(for: Prefs.chatGPTIsPersonal ? .chatGPT : .chatGPTWork))
         let modeLabel = Prefs.chatGPTIsPersonal ? "Personal" : "Work"
         let item = NSMenuItem(title: "ChatGPT · \(modeLabel)", action: nil, keyEquivalent: "")
@@ -1438,6 +1438,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         sub.addItem(.separator())
+        sub.addItem(menuBarStyleItem(for: .cursor))
         sub.addItem(colorsMenuItem(for: Prefs.cursorIsPersonal ? .cursorPersonal : .cursorWork))
 
         let modeLabel = Prefs.cursorIsPersonal ? "Personal" : "Work"
@@ -1462,6 +1463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         note.isEnabled = false
         sub.addItem(note)
         sub.addItem(.separator())
+        sub.addItem(menuBarStyleItem(for: .grokBot))
         sub.addItem(colorsMenuItem(for: .grokBot))
         let item = NSMenuItem(title: "Grok Bot", action: nil, keyEquivalent: "")
         item.submenu = sub
@@ -1507,6 +1509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         sub.addItem(.separator())
+        sub.addItem(menuBarStyleItem(for: .claude))
         sub.addItem(colorsMenuItem(for: Prefs.claudeIsPersonal ? .claudePersonal : .claude))
         let modeLabel = Prefs.claudeIsPersonal ? "Personal" : "Work"
         let item = NSMenuItem(title: "Claude · \(modeLabel)", action: nil, keyEquivalent: "")
@@ -1565,6 +1568,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         sub.addItem(clearBalance)
 
         sub.addItem(.separator())
+        sub.addItem(menuBarStyleItem(for: .openAI))
         sub.addItem(colorsMenuItem(for: .openAI))
 
         let remove = NSMenuItem(title: "Remove Admin API key",
@@ -1577,6 +1581,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                                                 : "OpenAI API · not configured",
                               action: nil, keyEquivalent: "")
         item.submenu = sub
+        return item
+    }
+
+    /// Per-provider layout. Work spend / OpenAI only list Divider and Compact stack.
+    private func menuBarStyleItem(for provider: MenuBarProvider) -> NSMenuItem {
+        let current = Prefs.statusBarDesign(for: provider)
+        let designMenu = NSMenu(title: "Menu bar style")
+        for design in StatusBarDesign.options(spendOnly: provider.isSpendOnly) {
+            let choice = NSMenuItem(title: design.title, action: #selector(setStatusBarDesign(_:)), keyEquivalent: "")
+            choice.representedObject = ["provider": provider.rawValue, "design": design.rawValue]
+            choice.state = current == design ? .on : .off
+            choice.target = self
+            designMenu.addItem(choice)
+        }
+        let item = NSMenuItem(title: "Menu bar style", action: nil, keyEquivalent: "")
+        item.submenu = designMenu
         return item
     }
 
@@ -1921,8 +1941,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     @objc private func setStatusBarDesign(_ sender: NSMenuItem) {
+        if let info = sender.representedObject as? [String: String],
+           let providerRaw = info["provider"],
+           let provider = MenuBarProvider(rawValue: providerRaw),
+           let designRaw = info["design"],
+           let design = StatusBarDesign(rawValue: designRaw) {
+            Prefs.setStatusBarDesign(design, for: provider)
+            rerender()
+            return
+        }
+        // Legacy global pick (Mission preview / older menus).
         guard let raw = sender.representedObject as? String, let design = StatusBarDesign(rawValue: raw) else { return }
         Prefs.statusBarDesign = design
+        for provider in MenuBarProvider.allCases {
+            Prefs.setStatusBarDesign(design, for: provider)
+        }
         rerender()
     }
 
@@ -2289,6 +2322,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         Prefs.chatGPTAccountMode = .personal
         lastChatGPTWorkUsage = nil
         chatGPTWorkClient.clearCache()
+        Prefs.clampStatusBarDesign(for: .chatGPT)
         rerender()
         refreshChatGPTUsage(force: true)
     }
@@ -2296,6 +2330,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @objc private func setChatGPTWorkAccount() {
         Prefs.chatGPTAccountMode = .work
         lastChatGPTUsage = nil
+        Prefs.clampStatusBarDesign(for: .chatGPT)
         rerender()
         refreshChatGPTUsage(force: true)
     }
@@ -2318,23 +2353,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     @objc private func setCursorWorkAccount() {
         Prefs.cursorAccountMode = .work
+        Prefs.clampStatusBarDesign(for: .cursor)
         rerender()
     }
 
     @objc private func setClaudeWorkAccount() {
         Prefs.claudeAccountMode = .work
         lastClaudeUsage = nil
+        Prefs.clampStatusBarDesign(for: .claude)
         rerender()
     }
 
     @objc private func setClaudePersonalAccount() {
         Prefs.claudeAccountMode = .personal
+        Prefs.clampStatusBarDesign(for: .claude)
         rerender()
         refreshClaudeUsage(force: true)
     }
 
     @objc private func setCursorPersonalAccount() {
         Prefs.cursorAccountMode = .personal
+        Prefs.clampStatusBarDesign(for: .cursor)
         rerender()
     }
 

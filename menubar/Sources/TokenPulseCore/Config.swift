@@ -117,9 +117,44 @@ enum Prefs {
         set { UserDefaults.standard.set(newValue, forKey: "disabledAlertThresholds") }
     }
     static var activeAlertThresholds: [Int] { alertThresholds.filter { !disabledAlertThresholds.contains($0) } }
+    /// Legacy global style. Still seeded into a provider slot that has never
+    /// been set on its own, so older installs keep their look.
     static var statusBarDesign: StatusBarDesign {
         get { UserDefaults.standard.string(forKey: "statusBarDesign").flatMap(StatusBarDesign.init(rawValue:)) ?? .divider }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "statusBarDesign") }
+    }
+
+    private static func statusBarDesignKey(for provider: MenuBarProvider) -> String {
+        "statusBarDesign.\(provider.rawValue)"
+    }
+
+    /// Stored (or legacy) design for a provider, clamped to what its account
+    /// mode can show. Work spend and OpenAI only keep Divider and Compact stack.
+    static func statusBarDesign(for provider: MenuBarProvider) -> StatusBarDesign {
+        StatusBarDesign.resolved(rawStatusBarDesign(for: provider), spendOnly: provider.isSpendOnly)
+    }
+
+    static func rawStatusBarDesign(for provider: MenuBarProvider) -> StatusBarDesign {
+        let key = statusBarDesignKey(for: provider)
+        if let raw = UserDefaults.standard.string(forKey: key),
+           let design = StatusBarDesign(rawValue: raw) {
+            return design
+        }
+        return statusBarDesign
+    }
+
+    static func setStatusBarDesign(_ design: StatusBarDesign, for provider: MenuBarProvider) {
+        let resolved = StatusBarDesign.resolved(design, spendOnly: provider.isSpendOnly)
+        UserDefaults.standard.set(resolved.rawValue, forKey: statusBarDesignKey(for: provider))
+    }
+
+    /// When Account flips to work, drop an unsupported personal layout.
+    static func clampStatusBarDesign(for provider: MenuBarProvider) {
+        let raw = rawStatusBarDesign(for: provider)
+        let resolved = StatusBarDesign.resolved(raw, spendOnly: provider.isSpendOnly)
+        if resolved != raw {
+            UserDefaults.standard.set(resolved.rawValue, forKey: statusBarDesignKey(for: provider))
+        }
     }
     static var themedProviderLogos: Bool {
         get { boolPref("themedProviderLogos", default: false) }
@@ -298,6 +333,7 @@ enum Prefs {
          showClaudeInBarKey, showCursorInBarKey, showChatGPTInBarKey, showOpenAIInBarKey,
          showGrokBotInBarKey, enabledClaudeKey, enabledCursorKey, enabledChatGPTKey,
          enabledOpenAIKey, enabledGrokBotKey]
+            + MenuBarProvider.allCases.map { statusBarDesignKey(for: $0) }
             + BarSpendSource.allCases.flatMap { [$0.dailyKey, $0.monthlyKey] }
     }
 
