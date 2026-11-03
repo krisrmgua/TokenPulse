@@ -1,0 +1,36 @@
+{
+  "_comment": "Rates in USD per 1,000,000 tokens. cache_write = 1.25x input (5-min TTL), cache_read = 0.10x input, UNLESS overridden below with a rate sourced directly from https://aws.amazon.com/bedrock/pricing/. Single source of truth for the menu bar app.",
+  "_ttl_note": "Anthropic cache_write assumes the default 5-minute ephemeral TTL (1.25x input); Claude Code uses 5-min, not the pricier 1h tier. OpenAI's Bedrock cache_write is a 30-min TTL and is priced/sourced separately per model below.",
+  "_context_window_note": "OpenAI gpt-5.6-* tiers on Bedrock price short (<=272K) and long (>1M) context separately; we only see the model name in transcripts, not which context window was used, so 'sol'/'terra'/'luna' below use the SHORT-context rate. A long-context call is undercounted (up to ~2x) until this is refined.",
+  "_match_note": "Resolution order: (1) 'models' — longest model-string-substring match (so 'openai.gpt-5.4' matches key 'gpt-5.4'), for a confirmed rate that deviates from its family (e.g. a temporary sale, or a legacy non-tiered release); (2) 'families' — model string contains a tier codename ('opus'/'sonnet'/'haiku'/'fable' for Anthropic, 'sol'/'terra'/'luna' for OpenAI's gpt-5.6 line), so a brand-new dated or point release in a known tier still prices sanely without a code change; (3) 'default' — last-resort fallback for a wholly unrecognized family.",
+  "default": { "input": 5.0, "output": 25.0, "cache_write": 6.25, "cache_read": 0.5 },
+  "families": {
+    "opus":   { "input": 5.0,  "output": 25.0, "cache_write": 6.25, "cache_read": 0.5 },
+    "sonnet": { "input": 3.0,  "output": 15.0, "cache_write": 3.75, "cache_read": 0.3 },
+    "haiku":  { "input": 1.0,  "output": 5.0,  "cache_write": 1.25, "cache_read": 0.1,
+                "_note": "unconfirmed vs Bedrock — that page's Haiku 4.5 row is client-rendered, digits not visible in raw HTML" },
+    "fable":  { "input": 10.0, "output": 50.0, "cache_write": 12.5, "cache_read": 1.0,
+                "_note": "unconfirmed vs Bedrock — same client-rendering issue as Haiku above" },
+
+    "sol":   { "input": 5.50, "output": 33.00, "cache_write": 6.875, "cache_read": 0.55,
+               "_source": "aws.amazon.com/bedrock/pricing GPT-5.6 Sol, short context (272K), US East" },
+    "terra": { "input": 2.20, "output": 13.20, "cache_write": 2.75,  "cache_read": 0.22,
+               "_source": "aws.amazon.com/bedrock/pricing GPT-5.6 Terra, short context (272K), US East" },
+    "luna":  { "input": 0.22, "output": 1.32,  "cache_write": 0.275, "cache_read": 0.022,
+               "_source": "aws.amazon.com/bedrock/pricing GPT-5.6 Luna, short context (272K), US East" }
+  },
+  "models": {
+    "claude-sonnet-5": {
+      "input": 2.0, "output": 10.0, "cache_write": 2.5, "cache_read": 0.2,
+      "_note": "on sale through at least 2026-08-31 per aws.amazon.com/bedrock/pricing — confirm and update/remove after"
+    },
+    "gpt-5.4": {
+      "input": 2.75, "output": 16.50, "cache_write": 2.75, "cache_read": 0.275,
+      "_note": "legacy non-tiered GPT release, no tier codename to match a family; no separate cache-write price listed on Bedrock so cache_write defaults to the input rate"
+    },
+    "gpt-5.5": {
+      "input": 5.50, "output": 33.00, "cache_write": 5.50, "cache_read": 0.55,
+      "_note": "legacy non-tiered GPT release, same no-cache-write-price caveat as gpt-5.4"
+    }
+  }
+}

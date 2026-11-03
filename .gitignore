@@ -1,0 +1,17 @@
+# Swift / SwiftPM
+menubar/.build/
+menubar/TokenPulse.app/
+*.xcodeproj
+.swiftpm/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Aggregator local DB (runtime state, not source)
+aggregator/*.db
+
+# macOS
+.DS_Store

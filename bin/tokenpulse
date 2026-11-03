@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+# tokenpulse
+#
+# Control the TokenPulse menu-bar app: login autostart, run status, start/stop.
+# Source: https://github.com/krisrmgua/TokenPulse
+# Install from a checkout with:  menubar/install.sh
+#
+# Usage:
+#   tokenpulse              # status (running + autostart)
+#   tokenpulse status
+#   tokenpulse enable       # start at login
+#   tokenpulse disable      # do not start at login (leaves app running)
+#   tokenpulse start        # start the app if it is not running
+#   tokenpulse stop         # quit the running app (does not change autostart)
+
+set -euo pipefail
+
+LABEL="com.kris.tokenpulse"
+APP="${HOME}/Applications/TokenPulse.app"
+BIN="${APP}/Contents/MacOS/TokenPulse"
+PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
+UID_N="$(id -u)"
+DOMAIN="gui/${UID_N}"
+SERVICE="${DOMAIN}/${LABEL}"
+
+usage() {
+  sed -n '2,13p' "$0" | sed 's/^# \?//'
+}
+
+is_running() {
+  pgrep -f "TokenPulse.app/Contents/MacOS/TokenPulse" >/dev/null 2>&1
+}
+
+pid() {
+  pgrep -f "TokenPulse.app/Contents/MacOS/TokenPulse" | head -1
+}
+
+agent_loaded() {
+  launchctl print "$SERVICE" >/dev/null 2>&1
+}
+
+autostart_disabled() {
+  launchctl print-disabled "$DOMAIN" 2>/dev/null | grep -Eq "\"${LABEL}\" => (disabled|true)"
+}
+
+write_plist() {
+  mkdir -p "${HOME}/Library/LaunchAgents" "${HOME}/Library/Logs"
+  cat > "$PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${BIN}</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>${HOME}/Applications</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>StandardOutPath</key>
+    <string>${HOME}/Library/Logs/tokenpulse.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>${HOME}/Library/Logs/tokenpulse.err.log</string>
+</dict>
+</plist>
+EOF
+}
+
+require_app() {
+  if [[ ! -x "$BIN" ]]; then
+    echo "FAIL: TokenPulse binary not found at ${BIN}" >&2
+    echo "Build and install from a TokenPulse checkout:" >&2
+    echo "  ./menubar/install.sh" >&2
+    exit 1
+  fi
+}
+
+cmd_status() {
+  if is_running; then
+    echo "running: yes (pid $(pid))"
+  else
+    echo "running: no"
+  fi
+
+  if [[ -f "$PLIST" ]]; then
+    echo "plist:   ${PLIST}"
+  else
+    echo "plist:   missing"
+  fi
+
+  if autostart_disabled; then
+    echo "autostart: disabled"
+  elif [[ -f "$PLIST" ]]; then
+    echo "autostart: enabled"
+  else
+    echo "autostart: disabled (no LaunchAgent)"
+  fi
+
+  if agent_loaded; then
+    echo "agent:   loaded (${SERVICE})"
+  else
+    echo "agent:   not loaded"
+  fi
+}
+
+cmd_enable() {
+  require_app
+  write_plist
+  launchctl enable "$SERVICE" 2>/dev/null || true
+  if ! agent_loaded; then
+    launchctl bootstrap "$DOMAIN" "$PLIST"
+  fi
+  echo "autostart enabled (${PLIST})"
+  cmd_status
+}
+
+cmd_disable() {
+  # Disable only — do not bootout, or the current menu-bar process would quit.
+  launchctl disable "$SERVICE" 2>/dev/null || true
+  echo "autostart disabled (will not launch at next login)"
+  if is_running; then
+    echo "app is still running (pid $(pid)); use 'tokenpulse stop' to quit it"
+  fi
+  cmd_status
+}
+
+cmd_start() {
+  require_app
+  if is_running; then
+    echo "already running (pid $(pid))"
+    return 0
+  fi
+
+  if [[ -f "$PLIST" ]] && ! autostart_disabled; then
+    if agent_loaded; then
+      launchctl kickstart -k "$SERVICE"
+    else
+      launchctl bootstrap "$DOMAIN" "$PLIST"
+    fi
+  else
+    # Autostart off: launch the app directly without loading the agent.
+    open "$APP"
+  fi
+
+  sleep 1
+  if is_running; then
+    echo "started (pid $(pid))"
+  else
+    echo "FAIL: launch attempted but process not found" >&2
+    exit 1
+  fi
+}
+
+cmd_stop() {
+  if ! is_running; then
+    echo "not running"
+    return 0
+  fi
+  local old
+  old="$(pid)"
+  if agent_loaded; then
+    launchctl bootout "$SERVICE" 2>/dev/null || true
+  fi
+  if is_running; then
+    pkill -f "TokenPulse.app/Contents/MacOS/TokenPulse" || true
+  fi
+  sleep 1
+  if is_running; then
+    echo "FAIL: still running (pid $(pid))" >&2
+    exit 1
+  fi
+  echo "stopped (was pid ${old})"
+}
+
+CMD="${1:-status}"
+case "$CMD" in
+  status)  cmd_status ;;
+  enable)  cmd_enable ;;
+  disable) cmd_disable ;;
+  start)   cmd_start ;;
+  stop)    cmd_stop ;;
+  -h|--help|help) usage ;;
+  *)
+    echo "unknown command: $CMD" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
