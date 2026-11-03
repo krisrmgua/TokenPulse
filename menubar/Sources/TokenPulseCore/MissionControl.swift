@@ -182,8 +182,9 @@ struct MissionControlView: View {
                 tab("Efficiency", "efficiency")
                 tab("Scoreboard", "scoreboard")
                 tab("Alerts", "alerts")
-                Spacer()
-            }.padding(.horizontal, 14).padding(.vertical, 10)
+                Spacer(minLength: 12)
+                if model.showsCombinedSpend { combinedSpendBar }
+            }.padding(.horizontal, 14).padding(.vertical, 8)
             line
             HStack(spacing: 0) {
                 sidebar
@@ -229,59 +230,50 @@ struct MissionControlView: View {
                         .background(model.route == p.id ? MissionStyle.background : .clear).cornerRadius(7)
                 }.buttonStyle(.plain)
             }
-            line.padding(.vertical, 9)
-            if model.showsCombinedSpend { combinedSpendSidebar }
             Spacer(minLength: 0)
-        }.padding(.horizontal, 10).padding(.vertical, 18).frame(width: 168)
+        }.padding(.horizontal, 10).padding(.vertical, 18).frame(width: 150)
             .background(MissionStyle.panel)
     }
-    private var combinedSpendSidebar: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Your spend")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(MissionStyle.secondary)
+    /// Compact work-spend chips on the tab bar. Panel fill alone would disappear into the
+    /// bar, so these use a cyan-tinted surface and stroke.
+    private var combinedSpendBar: some View {
+        Group {
             if model.combinedLines.isEmpty {
-                Text("Waiting for work spend.")
+                Text("Waiting for work spend")
                     .font(.system(size: 10))
                     .foregroundColor(MissionStyle.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(spendChipFill)
+                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(MissionStyle.cyan.opacity(0.28)))
+                    .cornerRadius(7)
             } else {
-                ForEach(Array(model.combinedLines.prefix(2).enumerated()), id: \.offset) { index, text in
-                    let parts = text.components(separatedBy: ": ")
-                    let label = parts.first ?? text
-                    let value = model.combinedAmounts.indices.contains(index)
-                        ? Fmt.exactMoney(model.combinedAmounts[index])
-                        : parts.dropFirst().joined(separator: ": ")
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(label).font(.system(size: 10)).foregroundColor(MissionStyle.secondary)
-                        Text(value).font(.system(size: 16, weight: .semibold)).monospacedDigit()
+                HStack(spacing: 6) {
+                    ForEach(Array(model.combinedLines.prefix(3).enumerated()), id: \.offset) { index, text in
+                        let parts = text.components(separatedBy: ": ")
+                        let rawLabel = parts.first ?? text
+                        let label = rawLabel.hasPrefix("Projected") ? "Proj. eom" : rawLabel
+                        let value = model.combinedAmounts.indices.contains(index)
+                            ? Fmt.exactMoney(model.combinedAmounts[index])
+                            : parts.dropFirst().joined(separator: ": ")
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(label).font(.system(size: 9, weight: .medium)).foregroundColor(MissionStyle.secondary)
+                            Text(value).font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(spendChipFill)
+                        .overlay(RoundedRectangle(cornerRadius: 7).stroke(MissionStyle.cyan.opacity(0.28)))
+                        .cornerRadius(7)
                     }
-                    .padding(9)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(MissionStyle.background)
-                    .cornerRadius(8)
                 }
-                if let projected = model.combinedLines.dropFirst(2).first {
-                    let parts = projected.components(separatedBy: ": ")
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Proj. eom")
-                            .font(.system(size: 10))
-                            .foregroundColor(MissionStyle.secondary)
-                        Spacer(minLength: 4)
-                        Text(parts.dropFirst().joined(separator: ": "))
-                            .font(.system(size: 11, weight: .semibold))
-                            .monospacedDigit()
-                    }
-                    .padding(.horizontal, 2)
-                }
-                Text("Claude · Cursor · ChatGPT work")
-                    .font(.system(size: 9))
-                    .foregroundColor(MissionStyle.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Your spend")
+    }
+    private var spendChipFill: Color {
+        Color(red: 0.06, green: 0.16, blue: 0.24)
     }
     @ViewBuilder private func brand(_ p: MissionProvider, size: CGFloat) -> some View {
         let resource = p.resource
