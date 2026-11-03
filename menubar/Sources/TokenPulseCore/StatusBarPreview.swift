@@ -55,7 +55,7 @@ enum StatusBarPreview {
             let y = CGFloat(height - 115 - row * 55)
             text(design.title, 24, y + 5)
             for (column, sample) in samples.enumerated() {
-                let image = StatusBarArtwork.image(blocks: [.init(provider: "ChatGPT", icon: icon, metrics: sample.1)], design: design, dark: true, enlarged: true)
+                let image = StatusBarArtwork.image(blocks: [.init(provider: "ChatGPT", icon: icon, metrics: sample.1, design: design)], dark: true, enlarged: true)
                 image.draw(in: NSRect(x: CGFloat(column) * 275 + 180, y: y, width: image.size.width, height: image.size.height))
             }
         }
