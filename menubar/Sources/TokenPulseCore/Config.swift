@@ -122,7 +122,7 @@ enum Prefs {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "statusBarDesign") }
     }
     static var themedProviderLogos: Bool {
-        get { boolPref("themedProviderLogos", default: true) }
+        get { boolPref("themedProviderLogos", default: false) }
         set { UserDefaults.standard.set(newValue, forKey: "themedProviderLogos") }
     }
     /// Off returns the panel to the overview each time it opens.
@@ -179,7 +179,7 @@ enum Prefs {
     /// Off by default: the original app painted every figure in the label color,
     /// and thresholds are a per-user judgement call rather than a fleet default.
     static var spendColorsEnabled: Bool {
-        get { boolPref(spendColorsEnabledKey, default: false) }
+        get { boolPref(spendColorsEnabledKey, default: true) }
         set { UserDefaults.standard.set(newValue, forKey: spendColorsEnabledKey) }
     }
 
@@ -192,17 +192,14 @@ enum Prefs {
     /// Pastel spend tints in the menu bar instead of the full-strength system
     /// colors. Off by default.
     static var pastelBarColors: Bool {
-        get { boolPref(pastelBarColorsKey, default: false) }
+        get { boolPref(pastelBarColorsKey, default: true) }
         set { UserDefaults.standard.set(newValue, forKey: pastelBarColorsKey) }
     }
 
-    /// Larger menu-bar text and icons, so the item lines up with Tickr. Off by default.
-    static var increaseBarSize: Bool {
-        get { boolPref(increaseBarSizeKey, default: false) }
-        set { UserDefaults.standard.set(newValue, forKey: increaseBarSizeKey) }
-    }
+    /// Larger menu-bar text and icons (always on).
+    static let increaseBarSize = true
 
-    static var barSizes: BarSizes { increaseBarSize ? .increased : .standard }
+    static var barSizes: BarSizes { .increased }
 
     /// Per-source visibility across both the menu-bar title and dropdown.
     static var showClaudeInBar: Bool {
@@ -297,7 +294,7 @@ enum Prefs {
     /// Layout and visibility keys, for `resetToDefaults()`.
     static var layoutKeys: [String] {
         ["notificationsEnabled", "allowanceAlertsEnabled", "opusAlertsEnabled", "notificationSounds", "alertThresholds", "disabledAlertThresholds", "statusBarDesign", "themedProviderLogos", "rememberPanelPlace", presentationModeKey, usageRefreshMinutesKey, spendColorsEnabledKey, darkBarBackgroundKey, pastelBarColorsKey,
-         increaseBarSizeKey,
+         increaseBarSizeKey, // legacy key cleared on reset; size is always increased now
          showClaudeInBarKey, showCursorInBarKey, showChatGPTInBarKey, showOpenAIInBarKey,
          showGrokBotInBarKey, enabledClaudeKey, enabledCursorKey, enabledChatGPTKey,
          enabledOpenAIKey, enabledGrokBotKey]

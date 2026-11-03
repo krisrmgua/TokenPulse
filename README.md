@@ -42,9 +42,9 @@ The menu-bar item opens on the overview. **Options → Reopen where I left off**
 
 Each provider has **Enable** and **Show in Menu**. Enable turns the data source on. Show in Menu puts its block on the menu bar. ChatGPT and OpenAI start off. Cursor and Claude start on.
 
-**Options → Menu bar style** picks the capsule layout. The default is **1 · Divider capsule**. **Themed provider logos** is on. **Dark menu-bar background** draws a navy capsule behind each block. When any allowance meter on that block hits 0%, including a 5-hour window, that capsule turns a dark red.
+**Options → Menu bar style** picks the capsule layout. The default is **1 · Divider capsule**. **Themed provider logos** is off. **Dark menu-bar background** draws a navy capsule behind each block. When any allowance meter on that block hits 0%, including a 5-hour window, that capsule turns a dark red.
 
-**Spend colors** is off until you turn it on. Each source then has its own green / yellow / orange / red steps.
+**Spend colors** and **Pastel menu-bar colors** are on by default. Each source has its own green / yellow / orange / red steps.
 
 **Reset to defaults** clears layout and visibility choices. It keeps saved API keys.
 
@@ -190,10 +190,10 @@ Check the round trip without leaving the key in the output:
 |---|---|
 | Display | Per source |
 | Menu bar style | 1 · Divider capsule |
-| Themed logos | On |
+| Themed logos | Off |
 | Dark menu-bar background | On |
-| Spend colors | Off |
-| Increase menu bar size | Off |
+| Spend colors | On |
+| Pastel menu-bar colors | On |
 | Reopen where I left off | Off |
 | Usage refresh | 1 minute for the fast poll. Remote sources also wait at least a few minutes between network calls. |
 | Cursor / Claude | On, work spend |

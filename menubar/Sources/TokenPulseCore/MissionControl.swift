@@ -151,7 +151,26 @@ struct MissionControlView: View {
                 Spacer()
                 if model.refreshing { ProgressView().controlSize(.small) }
                 if model.route != "overview" { Button("Back") { model.back() }.buttonStyle(MissionButton()) }
-                Button("Refresh") { model.refresh() }.buttonStyle(MissionButton()).keyboardShortcut("r", modifiers: .command).disabled(model.refreshing)
+                Button {
+                    model.refresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .buttonStyle(MissionButton())
+                .keyboardShortcut("r", modifiers: .command)
+                .disabled(model.refreshing)
+                .help("Refresh")
+                .accessibilityLabel("Refresh")
+                Button {
+                    model.show("options")
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .buttonStyle(MissionButton())
+                .help("Preferences")
+                .accessibilityLabel("Preferences")
             }.padding(.horizontal, 18).padding(.vertical, 15)
             line
             HStack(spacing: 4) {
@@ -210,7 +229,6 @@ struct MissionControlView: View {
             if model.showsCombinedSpend {
                 Button("Combined spend") { model.show("combined") }.buttonStyle(MissionButton())
             }
-            Button("Preferences") { model.show("options") }.buttonStyle(MissionButton())
             Spacer()
         }.padding(.horizontal, 10).padding(.vertical, 18).frame(width: 150)
             .background(MissionStyle.panel)
@@ -236,59 +254,128 @@ struct MissionControlView: View {
                 }.fixedSize(horizontal: false, vertical: true).background(MissionStyle.panel)
             }
             if model.providers.isEmpty { note("Connecting to your sources…") }
-            else {
-                let pairs = stride(from: 0, to: model.providers.count, by: 2).map { Array(model.providers[$0..<min($0 + 2, model.providers.count)]) }
-                ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
-                    HStack(alignment: .top, spacing: 10) { ForEach(pair) { providerCard($0) } }
-                }
-            }
+            else { providerOverviewGrid }
             note("Allowances, estimated balances, and spend remain separate.")
         }
     }
-    private func providerCard(_ p: MissionProvider) -> some View {
-        Button { model.show(p.id) } label: {
-            VStack(alignment: .leading, spacing: 9) {
+    /// Enabled cards come first in side-by-side pairs. A lone enabled card shares its row
+    /// with at most 3 disabled cards — that cap keeps the left card from stretching with a
+    /// long stack. Extra disabled cards start on the next line in pairs.
+    private var providerOverviewGrid: some View {
+        let enabled = model.providers.filter(\.enabled)
+        let disabled = model.providers.filter { !$0.enabled }
+        let pairedEnabled = Array(enabled.prefix(enabled.count - (enabled.count % 2)))
+        let loneEnabled = enabled.count % 2 == 1 ? enabled.last : nil
+        let besideCap = 3
+        let besideDisabled = loneEnabled == nil ? [] : Array(disabled.prefix(besideCap))
+        let overflowDisabled = loneEnabled == nil ? disabled : Array(disabled.dropFirst(besideCap))
+        return VStack(spacing: 10) {
+            providerPairRows(pairedEnabled)
+            if let lone = loneEnabled {
                 HStack(alignment: .top, spacing: 10) {
-                    brand(p, size: 20)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(p.name).font(.system(size: 13, weight: .semibold))
-                        Text(providerSubtitle(p)).font(.system(size: 11)).foregroundColor(MissionStyle.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-                if !p.meters.isEmpty {
-                    VStack(spacing: 7) {
-                        ForEach(p.meters) { meter in
-                            VStack(alignment: .leading, spacing: 4) {
-                              HStack(spacing: 7) {
-                                Text(meter.label == "5-hour window" ? "5H" : meter.label == "Weekly window" ? "Weekly" : "Left")
-                                    .font(.system(size: 10, weight: .medium)).foregroundColor(MissionStyle.secondary).frame(width: 36, alignment: .leading)
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(MissionStyle.line)
-                                        Capsule().fill(MissionStyle.cyan).frame(width: geo.size.width * CGFloat(min(100, max(0, meter.percent))) / 100)
-                                    }
-                                }.frame(height: 5)
-                                Text("\(meter.percent)%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                                    .foregroundColor(summaryColor(p, percent: Double(meter.percent))).frame(width: 39, alignment: .trailing)
-                              }
-                              Text(meter.reset.map { "Resets " + $0 } ?? "Reset time unavailable")
-                                .font(.system(size: 10)).foregroundColor(MissionStyle.secondary).fixedSize(horizontal: false, vertical: true)
-                            }.accessibilityElement(children: .ignore).accessibilityLabel("\(meter.label): \(meter.percent)% remaining. Resets \(meter.reset ?? "not reported")")
+                    providerCard(lone, expandVertically: true)
+                    if besideDisabled.isEmpty {
+                        Color.clear.frame(maxWidth: .infinity)
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(besideDisabled) { providerCard($0, expandVertically: false) }
                         }
-                    }.padding(.leading, 30)
-                } else {
-                    Text(p.summary).font(.system(size: 15, weight: .semibold)).monospacedDigit()
-                        .foregroundColor(p.spendTint.map { Color(nsColor: $0) } ?? summaryColor(p))
-                        .fixedSize(horizontal: false, vertical: true).padding(.leading, 30)
-                    if let reset = p.resetNote { Text(reset).font(.system(size: 10)).foregroundColor(MissionStyle.secondary).padding(.leading, 30).fixedSize(horizontal: false, vertical: true) }
+                        .frame(maxWidth: .infinity, alignment: .top)
+                    }
                 }
-                Text(p.stale ? "Last received data · refresh delayed" : p.id == "openai" ? "Estimated balance / reported spend  ›" : p.row == nil ? "Open provider options  ›" : "View details  ›")
-                    .font(.system(size: 10)).foregroundColor(p.stale ? MissionStyle.amber : MissionStyle.secondary).padding(.leading, 30)
-            }.padding(13).frame(maxWidth: .infinity, minHeight: 113, alignment: .topLeading)
-                .background(MissionStyle.panel).cornerRadius(9)
-                .overlay(RoundedRectangle(cornerRadius: 9).stroke(MissionStyle.line))
-        }.buttonStyle(.plain)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            providerPairRows(overflowDisabled)
+        }
+    }
+    private func providerPairRows(_ providers: [MissionProvider]) -> some View {
+        let pairs = stride(from: 0, to: providers.count, by: 2).map { Array(providers[$0..<min($0 + 2, providers.count)]) }
+        return VStack(spacing: 10) {
+            ForEach(Array(pairs.enumerated()), id: \.offset) { _, pair in
+                HStack(alignment: .top, spacing: 10) {
+                    ForEach(pair) { providerCard($0, expandVertically: true) }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+    private func openProviderOptions(_ p: MissionProvider) {
+        model.show("options")
+        if let option = model.options?.children.first(where: { $0.title.hasPrefix(p.name) }) {
+            model.path = [option.id]
+        }
+    }
+    private func statusDot(_ enabled: Bool) -> some View {
+        Circle().fill(enabled ? MissionStyle.green : MissionStyle.red).frame(width: 8, height: 8)
+            .accessibilityLabel(enabled ? "Enabled" : "Disabled")
+    }
+    private func providerCard(_ p: MissionProvider, expandVertically: Bool = true) -> some View {
+        Button {
+            if p.enabled { model.show(p.id) } else { openProviderOptions(p) }
+        } label: {
+            Group {
+                if p.enabled { enabledProviderCard(p) } else { disabledProviderCard(p) }
+            }
+            .frame(maxWidth: .infinity, maxHeight: expandVertically ? .infinity : nil, alignment: .topLeading)
+            .background(MissionStyle.panel).cornerRadius(9)
+            .overlay(RoundedRectangle(cornerRadius: 9).stroke(MissionStyle.line))
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: expandVertically ? .infinity : nil, alignment: .top)
+        .accessibilityHint(p.enabled ? "Shows provider details" : "Opens provider options to enable")
+    }
+    private func disabledProviderCard(_ p: MissionProvider) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            brand(p, size: 18)
+            Text(p.name).font(.system(size: 13, weight: .semibold))
+            Spacer(minLength: 8)
+            Text("Disabled").font(.system(size: 12, weight: .semibold)).foregroundColor(MissionStyle.secondary)
+            statusDot(false)
+        }
+        .padding(.horizontal, 13).padding(.vertical, 11)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+    }
+    private func enabledProviderCard(_ p: MissionProvider) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top, spacing: 10) {
+                brand(p, size: 20)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(p.name).font(.system(size: 13, weight: .semibold))
+                    Text(providerSubtitle(p)).font(.system(size: 11)).foregroundColor(MissionStyle.secondary)
+                }
+                Spacer(minLength: 0)
+                statusDot(true).padding(.top, 4)
+            }
+            if !p.meters.isEmpty {
+                VStack(spacing: 7) {
+                    ForEach(p.meters) { meter in
+                        VStack(alignment: .leading, spacing: 4) {
+                          HStack(spacing: 7) {
+                            Text(meter.label == "5-hour window" ? "5H" : meter.label == "Weekly window" ? "Weekly" : "Left")
+                                .font(.system(size: 10, weight: .medium)).foregroundColor(MissionStyle.secondary).frame(width: 36, alignment: .leading)
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule().fill(MissionStyle.line)
+                                    Capsule().fill(MissionStyle.cyan).frame(width: geo.size.width * CGFloat(min(100, max(0, meter.percent))) / 100)
+                                }
+                            }.frame(height: 5)
+                            Text("\(meter.percent)%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                                .foregroundColor(summaryColor(p, percent: Double(meter.percent))).frame(width: 39, alignment: .trailing)
+                          }
+                          Text(meter.reset.map { "Resets " + $0 } ?? "Reset time unavailable")
+                            .font(.system(size: 10)).foregroundColor(MissionStyle.secondary).fixedSize(horizontal: false, vertical: true)
+                        }.accessibilityElement(children: .ignore).accessibilityLabel("\(meter.label): \(meter.percent)% remaining. Resets \(meter.reset ?? "not reported")")
+                    }
+                }.padding(.leading, 30)
+            } else {
+                Text(p.summary).font(.system(size: 15, weight: .semibold)).monospacedDigit()
+                    .foregroundColor(p.spendTint.map { Color(nsColor: $0) } ?? summaryColor(p))
+                    .fixedSize(horizontal: false, vertical: true).padding(.leading, 30)
+                if let reset = p.resetNote { Text(reset).font(.system(size: 10)).foregroundColor(MissionStyle.secondary).padding(.leading, 30).fixedSize(horizontal: false, vertical: true) }
+            }
+            Text(p.stale ? "Last received data · refresh delayed" : p.id == "openai" ? "Estimated balance / reported spend  ›" : "View details  ›")
+                .font(.system(size: 10)).foregroundColor(p.stale ? MissionStyle.amber : MissionStyle.secondary).padding(.leading, 30)
+        }.padding(13).frame(maxWidth: .infinity, minHeight: 113, alignment: .topLeading)
     }
     private func providerSubtitle(_ p: MissionProvider) -> String {
         switch p.id {
@@ -353,6 +440,16 @@ struct MissionControlView: View {
                 if model.path.isEmpty, let account = accountLabel {
                     Text(account).font(.system(size: 11)).foregroundColor(MissionStyle.secondary).padding(.horizontal, 7).padding(.vertical, 3).background(MissionStyle.panel).cornerRadius(5)
                 }
+                if let provider = model.providers.first(where: { $0.id == model.route }), model.path.isEmpty {
+                    Spacer(minLength: 8)
+                    Button { openProviderOptions(provider) } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .buttonStyle(MissionButton())
+                    .help("Provider options")
+                    .accessibilityLabel("Provider options")
+                }
             }
             if model.path.isEmpty && (model.route == "chatgpt" || model.route == "claude") {
                 Text(model.workCredits == nil && accountLabel == "Personal" ? "Independent usage windows" : model.route == "chatgpt" ? "API-equivalent estimate · not your bill" : "Work spend · today / month")
@@ -411,14 +508,8 @@ struct MissionControlView: View {
                 else if model.route == "options" { rows(remaining, panel: !model.currentTitle.hasSuffix("Colors")) }
                 else if !remaining.isEmpty { providerInformation(remaining) }
             }
-            if let provider = model.providers.first(where: { $0.id == model.route }), model.path.isEmpty {
-                Button("Provider options") {
-                    model.show("options")
-                    if let option = model.options?.children.first(where: { $0.title.hasPrefix(provider.name) }) { model.path = [option.id] }
-                }.buttonStyle(MissionButton())
-                if model.route == "claude", model.efficiencyEnabled {
-                    Button("Efficiency") { model.show("efficiency") }.buttonStyle(MissionButton())
-                }
+            if model.path.isEmpty, model.route == "claude", model.efficiencyEnabled {
+                Button("Efficiency") { model.show("efficiency") }.buttonStyle(MissionButton())
             }
         }
     }
@@ -448,7 +539,7 @@ struct MissionControlView: View {
                     Button(model.providers.first(where: { option.title.hasPrefix($0.name) })?.name ?? option.title) { model.path.append(option.id) }.buttonStyle(MissionButton())
                 }
             }
-            note("Pastel requires spend colors. Increased size applies to per-source mode. Efficiency uses local Claude Code sessions in personal or work mode.")
+            note("Pastel requires spend colors. Efficiency uses local Claude Code sessions in personal or work mode.")
             if let reset = sourceRows.first(where: { $0.title == "Reset to defaults…" }) { Button(reset.title) { model.perform(reset) }.buttonStyle(MissionButton()) }
         }
     }
@@ -574,7 +665,7 @@ struct MissionControlView: View {
         return title
     }
     private func isToggle(_ row: MissionRow) -> Bool {
-        row.title.hasSuffix("% remaining") || ["Enable notifications", "Low allowance alerts", "Claude model-spend advisories", "Notification sounds", "Enable", "Show in Menu", "Show daily in menu bar", "Show monthly in menu bar", "Spend colors", "Dark menu-bar background", "Pastel menu-bar colors", "Increase menu bar size", "Themed provider logos", "Reopen where I left off"].contains(row.title)
+        row.title.hasSuffix("% remaining") || ["Enable notifications", "Low allowance alerts", "Claude model-spend advisories", "Notification sounds", "Enable", "Show in Menu", "Show daily in menu bar", "Show monthly in menu bar", "Spend colors", "Dark menu-bar background", "Pastel menu-bar colors", "Themed provider logos", "Reopen where I left off"].contains(row.title)
     }
     private func note(_ text: String) -> some View {
         Text(text).font(.system(size: 12)).foregroundColor(MissionStyle.secondary).padding(12)
