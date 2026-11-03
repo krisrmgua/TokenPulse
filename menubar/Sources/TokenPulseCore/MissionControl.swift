@@ -87,7 +87,11 @@ final class MissionModel: ObservableObject {
     var resize: (NSSize) -> Void = { _ in }
 
     var options: MissionRow? { rows.first { $0.title == "Options" } }
-    func show(_ route: String) { self.route = route; path = [] }
+    func show(_ route: String) {
+        // Combined spend lives in the sidebar now; keep old deep links on overview.
+        self.route = route == "combined" ? "overview" : route
+        path = []
+    }
     var baseRows: [MissionRow] {
         if route == "options" { return options?.children ?? [] }
         return providers.first { $0.id == route }?.row?.children ?? []
@@ -226,12 +230,58 @@ struct MissionControlView: View {
                 }.buttonStyle(.plain)
             }
             line.padding(.vertical, 9)
-            if model.showsCombinedSpend {
-                Button("Combined spend") { model.show("combined") }.buttonStyle(MissionButton())
-            }
-            Spacer()
-        }.padding(.horizontal, 10).padding(.vertical, 18).frame(width: 150)
+            if model.showsCombinedSpend { combinedSpendSidebar }
+            Spacer(minLength: 0)
+        }.padding(.horizontal, 10).padding(.vertical, 18).frame(width: 168)
             .background(MissionStyle.panel)
+    }
+    private var combinedSpendSidebar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Your spend")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(MissionStyle.secondary)
+            if model.combinedLines.isEmpty {
+                Text("Waiting for work spend.")
+                    .font(.system(size: 10))
+                    .foregroundColor(MissionStyle.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(Array(model.combinedLines.prefix(2).enumerated()), id: \.offset) { index, text in
+                    let parts = text.components(separatedBy: ": ")
+                    let label = parts.first ?? text
+                    let value = model.combinedAmounts.indices.contains(index)
+                        ? Fmt.exactMoney(model.combinedAmounts[index])
+                        : parts.dropFirst().joined(separator: ": ")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(label).font(.system(size: 10)).foregroundColor(MissionStyle.secondary)
+                        Text(value).font(.system(size: 16, weight: .semibold)).monospacedDigit()
+                    }
+                    .padding(9)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(MissionStyle.background)
+                    .cornerRadius(8)
+                }
+                if let projected = model.combinedLines.dropFirst(2).first {
+                    let parts = projected.components(separatedBy: ": ")
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Proj. eom")
+                            .font(.system(size: 10))
+                            .foregroundColor(MissionStyle.secondary)
+                        Spacer(minLength: 4)
+                        Text(parts.dropFirst().joined(separator: ": "))
+                            .font(.system(size: 11, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                    .padding(.horizontal, 2)
+                }
+                Text("Claude · Cursor · ChatGPT work")
+                    .font(.system(size: 9))
+                    .foregroundColor(MissionStyle.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Your spend")
     }
     @ViewBuilder private func brand(_ p: MissionProvider, size: CGFloat) -> some View {
         let resource = p.resource
@@ -412,29 +462,7 @@ struct MissionControlView: View {
     }
 
     @ViewBuilder private var detail: some View {
-        if model.route == "combined" {
-            Text("Your spend").font(.system(size: 18, weight: .semibold))
-            Text("Claude, Cursor, and ChatGPT work accounts").font(.system(size: 12)).foregroundColor(MissionStyle.secondary)
-            if model.combinedLines.isEmpty { note(model.showsCombinedSpend ? "Waiting for work spend." : "No work spend sources are enabled. Personal allowances and API balances are not added together.") }
-            else {
-                HStack(spacing: 12) {
-                    ForEach(Array(model.combinedLines.prefix(2).enumerated()), id: \.offset) { index, text in
-                        let parts = text.components(separatedBy: ": ")
-                        metricCard(parts[0], model.combinedAmounts.indices.contains(index) ? Fmt.exactMoney(model.combinedAmounts[index]) : parts.dropFirst().joined(separator: ": "))
-                    }
-                }
-                ForEach(Array(model.combinedLines.dropFirst(2)), id: \.self) { text in
-                    let parts = text.components(separatedBy: ": ")
-                    informationLine(parts[0], parts.dropFirst().joined(separator: ": "))
-                }
-                note("Personal allowances and prepaid balances stay separate. ChatGPT is a planning estimate, and its today figure waits until ChatGPT finishes aggregating.")
-            }
-            HStack {
-                Button("ChatGPT") { model.show("chatgpt") }.buttonStyle(MissionButton())
-                Button("Claude") { model.show("claude") }.buttonStyle(MissionButton())
-                Button("Cursor") { model.show("cursor") }.buttonStyle(MissionButton())
-            }
-        } else {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Text(model.currentTitle).font(.system(size: 18, weight: .semibold))
                 if model.path.isEmpty, let account = accountLabel {
