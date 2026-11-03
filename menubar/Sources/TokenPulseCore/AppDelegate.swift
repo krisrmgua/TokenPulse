@@ -578,8 +578,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let today = (claudeWork ? r.todayUSD : 0) + (cursorSpend?.todaySpendUSD ?? 0) + chatToday
         let month = (claudeWork ? r.monthUSD : 0) + (cursorSpend?.totalSpendUSD ?? 0) + (chatSpend?.estimatedUSD ?? 0)
         let hasWorkSpend = claudeWork || cursorSpend != nil || chatSpend != nil
-        mission.combinedAmounts = hasWorkSpend ? [today, month] : []
-        mission.combinedLines = hasWorkSpend ? ["Today: \(Fmt.money(today))", "Month: \(Fmt.money(month))", "Projected month-end: \(Fmt.money(projectedMonthEnd(monthUSD: month)))"] : []
+        let projected = projectedMonthEnd(monthUSD: month)
+        mission.combinedAmounts = hasWorkSpend ? [today, month, projected] : []
+        mission.combinedLines = hasWorkSpend ? ["Today: \(Fmt.money(today))", "Month: \(Fmt.money(month))", "Projected month-end: \(Fmt.money(projected))"] : []
         mission.efficiencyEnabled = Prefs.enabledClaude && (lastRollup?.sessions ?? 0) > 0
         mission.efficiencyMessage = Prefs.enabledClaude ? "No local Claude Code sessions found this month. Use Claude Code, then refresh to see Efficiency and Scoreboard. Personal allowance percentages alone cannot produce an efficiency score." : "Enable Claude in provider options to analyze local Claude Code sessions."
         if let raw = lastRollup { mission.score = ScoreboardModel.build(eff: eff, rollup: raw, history: history) }
