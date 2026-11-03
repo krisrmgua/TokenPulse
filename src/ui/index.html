@@ -26,16 +26,50 @@
         </div>
         <div class="top-actions">
           <span class="spinner hidden" id="spinner" aria-label="Refreshing"></span>
-          <button class="btn icon" id="btn-back" title="Back" hidden>Back</button>
-          <button class="btn icon" id="btn-refresh" title="Refresh (Ctrl/Cmd+R)" aria-label="Refresh">↻</button>
-          <button class="btn icon" id="btn-options" title="Preferences" aria-label="Preferences">⚙</button>
+          <button class="btn icon" id="btn-back" title="Back" hidden>
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path
+                d="M10 3 L5 8 L10 13"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+          <button class="btn icon" id="btn-refresh" title="Refresh (⌘R)" aria-label="Refresh">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path
+                d="M13 8a5 5 0 1 1-1.2-3.3"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+              />
+              <path d="M13 2.5v3.2h-3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button class="btn icon" id="btn-options" title="Preferences" aria-label="Preferences">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6" />
+              <path
+                d="M8 1.6l.7 1.6 1.7.2.9 1.4 1.4-.4.9 1.5-1 1.1v1.6l1 1.1-.9 1.5-1.4-.4-.9 1.4-1.7.2L8 14.4l-.7-1.6-1.7-.2-.9-1.4-1.4.4-.9-1.5 1-1.1V7.4l-1-1.1.9-1.5 1.4.4.9-1.4 1.7-.2z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
         </div>
       </header>
       <nav class="tabbar" id="tabbar">
         <div class="tabs">
           <button class="tab" data-route="overview">Overview</button>
-          <button class="tab" data-route="spend">Spend</button>
-          <button class="tab" data-route="options">Options</button>
+          <button class="tab" data-route="efficiency">Efficiency</button>
+          <button class="tab" data-route="scoreboard">Scoreboard</button>
+          <button class="tab" data-route="alerts">Alerts</button>
         </div>
         <div class="chips" id="chips"></div>
       </nav>
@@ -45,7 +79,7 @@
       </div>
       <footer class="foot" id="foot">
         <span id="foot-left"></span>
-        <button class="link" id="btn-quit">Quit</button>
+        <button class="link" id="btn-quit">Quit ⌘Q</button>
       </footer>
     </div>
     <script type="module" src="./main.ts"></script>

@@ -35,14 +35,18 @@ declare global {
   }
 }
 
-type MainRoute = "overview" | "spend" | "options";
+type MainRoute = "overview" | "spend" | "efficiency" | "scoreboard" | "alerts" | "options";
 type Route = MainRoute | `source:${SourceId}`;
 type NoticeKind = "ok" | "warn" | "err";
 
-/** Mirrors REFRESH_CHOICES in electron/types.ts; prefs rejects anything else. */
+/** Sidebar / tray provider order — matches Swift Mission Control. */
+const PROVIDER_ORDER: SourceId[] = ["chatgpt", "cursor", "grokbot", "openai", "claude"];
+
 const REFRESH_CHOICES = [1, 2, 3, 5, 10, 15, 30];
 const RESET_CONFIRM_MS = 4000;
 const CHART_COLORS = { actual: "#58d2ec", projected: "#f0cc85", today: "#75e0b3" };
+const ART_CYAN = "#58d2ec";
+const ART_NAVY = "#0e1929";
 
 const api = window.tokenpulse;
 
@@ -137,25 +141,64 @@ function accountLabel(id: SourceId, account: AccountMode): string {
   return account === "work" ? "Work spend" : "Personal allowance";
 }
 
+function orderedSources(st: AppState): SourceSnapshot[] {
+  const byId = new Map(st.sources.map((s) => [s.id, s]));
+  return PROVIDER_ORDER.map((id) => byId.get(id)).filter((s): s is SourceSnapshot => Boolean(s));
+}
+
+// ---------- provider marks (inline SVG, themed cyan on navy) ----------
+
+function providerMark(id: SourceId, size: number): string {
+  const inset = size * 0.22;
+  const s = size - inset * 2;
+  const cx = inset + s / 2;
+  const cy = inset + s / 2;
+  const c = ART_CYAN;
+  let glyph = "";
+  switch (id) {
+    case "chatgpt": {
+      const r = s * 0.38;
+      const pts: string[] = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 2;
+        pts.push(`${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`);
+      }
+      glyph = `<polygon points="${pts.join(" ")}" fill="none" stroke="${c}" stroke-width="${Math.max(1.2, s * 0.1)}" stroke-linejoin="round"/><circle cx="${cx}" cy="${cy}" r="${s * 0.12}" fill="${c}"/>`;
+      break;
+    }
+    case "cursor": {
+      const u = s * 0.28;
+      glyph = `<path d="M ${cx} ${cy - u * 1.2} L ${cx + u} ${cy - u * 0.5} L ${cx + u} ${cy + u * 0.5} L ${cx} ${cy + u * 1.2} L ${cx - u} ${cy + u * 0.5} L ${cx - u} ${cy - u * 0.5} Z" fill="none" stroke="${c}" stroke-width="${Math.max(1.2, s * 0.1)}" stroke-linejoin="round"/><path d="M ${cx - u} ${cy - u * 0.5} L ${cx} ${cy} L ${cx + u} ${cy - u * 0.5} M ${cx} ${cy} L ${cx} ${cy + u * 1.2}" fill="none" stroke="${c}" stroke-width="${Math.max(1, s * 0.08)}"/>`;
+      break;
+    }
+    case "claude": {
+      const r = s * 0.36;
+      glyph = [0, 60, 120]
+        .map((deg) => {
+          const a = (deg * Math.PI) / 180;
+          return `<line x1="${cx - r * Math.cos(a)}" y1="${cy - r * Math.sin(a)}" x2="${cx + r * Math.cos(a)}" y2="${cy + r * Math.sin(a)}" stroke="${c}" stroke-width="${Math.max(1.4, s * 0.12)}" stroke-linecap="round"/>`;
+        })
+        .join("");
+      break;
+    }
+    case "openai":
+      glyph = `<circle cx="${cx}" cy="${cy}" r="${s * 0.34}" fill="none" stroke="${c}" stroke-width="${Math.max(1.2, s * 0.1)}"/><path d="M ${cx - s * 0.22} ${cy} Q ${cx} ${cy - s * 0.28} ${cx + s * 0.22} ${cy} Q ${cx} ${cy + s * 0.28} ${cx - s * 0.22} ${cy}" fill="none" stroke="${c}" stroke-width="${Math.max(1, s * 0.08)}"/>`;
+      break;
+    case "grokbot": {
+      const r = s * 0.32;
+      glyph = `<line x1="${cx - r}" y1="${cy - r}" x2="${cx + r}" y2="${cy + r}" stroke="${c}" stroke-width="${Math.max(1.5, s * 0.12)}" stroke-linecap="round"/><line x1="${cx + r}" y1="${cy - r}" x2="${cx - r}" y2="${cy + r}" stroke="${c}" stroke-width="${Math.max(1.5, s * 0.12)}" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="${s * 0.1}" fill="${c}"/>`;
+      break;
+    }
+  }
+  return `<svg class="pmark" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><rect width="${size}" height="${size}" rx="${size * 0.22}" fill="${ART_NAVY}"/>${glyph}</svg>`;
+}
+
 // ---------- shared fragments ----------
 
 function noticeHtml(): string {
   if (!notice) return "";
   const cls = notice.kind === "ok" ? "note" : `note ${notice.kind}`;
   return `<div class="${cls}">${escapeHtml(notice.text)}</div>`;
-}
-
-function figuresHtml(s: SourceSnapshot): string {
-  const figs: [string, number | undefined][] = [
-    ["Today", s.todayUSD],
-    ["Month", s.monthUSD],
-    ["Proj. eom", s.projectedUSD],
-  ];
-  const shown = figs.filter(([, v]) => v !== undefined);
-  if (shown.length === 0) return "";
-  return `<div class="figures">${shown
-    .map(([k, v]) => `<div class="fig"><div class="k">${k}</div><div class="v">${money(v ?? 0)}</div></div>`)
-    .join("")}</div>`;
 }
 
 function meterClass(pct: number): string {
@@ -167,7 +210,7 @@ function meterClass(pct: number): string {
 function meterHtml(m: Meter): string {
   const pct = Math.max(0, Math.min(100, Math.round(m.percentLeft)));
   const reset = m.resetAt ? ` <span class="muted">· ${escapeHtml(resetHint(m.resetAt))}</span>` : "";
-  return `<div>
+  return `<div class="meter">
     <div class="meter-top"><span>${escapeHtml(m.label)}${reset}</span><span class="pct">${pct}% left</span></div>
     <div class="bar"><span class="${meterClass(pct)}" style="width:${pct}%"></span></div>
   </div>`;
@@ -176,18 +219,6 @@ function meterHtml(m: Meter): string {
 function metersHtml(s: SourceSnapshot): string {
   if (s.meters.length === 0) return "";
   return `<div class="meters">${s.meters.map(meterHtml).join("")}</div>`;
-}
-
-function messageHtml(s: SourceSnapshot): string {
-  if (!s.message) return "";
-  const cls = s.status === "error" ? "msg err" : "msg";
-  return `<div class="${cls}">${escapeHtml(s.message)}</div>`;
-}
-
-function placeholderHtml(s: SourceSnapshot): string {
-  if (!s.enabled) return `<div class="muted">Off. Turn on Enable to start reading it.</div>`;
-  if (s.status === "loading") return `<div class="muted">Loading…</div>`;
-  return "";
 }
 
 function togglesHtml(s: SourceSnapshot): string {
@@ -200,7 +231,10 @@ function togglesHtml(s: SourceSnapshot): string {
 function accountSelectHtml(s: SourceSnapshot): string {
   if (s.accounts.length < 2) return "";
   const opts = s.accounts
-    .map((a) => `<option value="${a}" ${a === s.account ? "selected" : ""}>${escapeHtml(accountLabel(s.id, a))}</option>`)
+    .map(
+      (a) =>
+        `<option value="${a}" ${a === s.account ? "selected" : ""}>${escapeHtml(accountLabel(s.id, a))}</option>`,
+    )
     .join("");
   return `<select data-act="account" data-id="${s.id}" aria-label="${escapeHtml(s.name)} account">${opts}</select>`;
 }
@@ -218,38 +252,56 @@ function metricsHtml(items: [string, string][]): string {
     .join("")}</div>`;
 }
 
+function spendHeadline(s: SourceSnapshot): string {
+  if (s.todayUSD === undefined && s.monthUSD === undefined) return "";
+  const bits: string[] = [];
+  if (s.todayUSD !== undefined) bits.push(`Today ${money(s.todayUSD)}`);
+  if (s.monthUSD !== undefined) bits.push(`Month ${money(s.monthUSD)}`);
+  return `<div class="spend-headline">${bits.join(" · ")}</div>`;
+}
+
 // ---------- views ----------
 
 function sourceCard(s: SourceSnapshot): string {
-  const cls = ["card", s.enabled ? "" : "off", s.status === "stale" ? "stale" : ""].filter(Boolean).join(" ");
-  return `<article class="${cls}">
+  if (!s.enabled) {
+    return `<article class="card off compact" data-act="go" data-route="source:${s.id}">
+      <div class="card-head">
+        ${providerMark(s.id, 16)}
+        <span class="name">${escapeHtml(s.name)}</span>
+        <span class="spacer"></span>
+        <span class="dot ${s.status}"></span>
+        <span class="status-line">Disabled</span>
+      </div>
+    </article>`;
+  }
+  return `<article class="card${s.status === "stale" ? " stale" : ""}">
     <div class="card-head">
-      <span class="dot ${s.status}"></span>
-      <span class="name" data-act="go" data-route="source:${s.id}">${escapeHtml(s.name)}</span>
-      <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span>
+      ${providerMark(s.id, 20)}
+      <div class="card-titles">
+        <span class="name" data-act="go" data-route="source:${s.id}">${escapeHtml(s.name)}</span>
+        <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span>
+      </div>
       <span class="spacer"></span>
       <span class="status-line ${s.status}">${STATUS_LABEL[s.status]}</span>
     </div>
-    ${s.enabled ? figuresHtml(s) : ""}
-    ${s.enabled ? metersHtml(s) : ""}
-    ${placeholderHtml(s)}
-    ${s.enabled ? messageHtml(s) : ""}
-    ${togglesHtml(s)}
+    ${s.meters.length > 0 ? metersHtml(s) : spendHeadline(s)}
+    ${s.message ? `<div class="msg${s.status === "error" ? " err" : ""}">${escapeHtml(s.message)}</div>` : ""}
+    <button class="link details" data-act="go" data-route="source:${s.id}">View details ›</button>
   </article>`;
 }
 
 function overviewView(st: AppState): string {
   const parts = [noticeHtml()];
-  if (st.combined) {
-    parts.push(
-      `<div><h3>Work spend</h3>${metricsHtml([
-        ["Today", money(st.combined.todayUSD)],
-        ["Month to date", money(st.combined.monthUSD)],
-        ["Projected month-end", money(st.combined.projectedUSD)],
-      ])}</div>`,
-    );
+  const sources = orderedSources(st);
+  const enabled = sources.filter((s) => s.enabled);
+  const disabled = sources.filter((s) => !s.enabled);
+  parts.push(`<div class="grid">${enabled.map(sourceCard).join("")}</div>`);
+  if (disabled.length > 0) {
+    parts.push(`<div class="disabled-list">${disabled.map(sourceCard).join("")}</div>`);
   }
-  parts.push(`<div><h3>Sources</h3><div class="grid">${st.sources.map(sourceCard).join("")}</div></div>`);
+  parts.push(
+    `<div class="foot-note muted">Allowances, prepaid balances, and work spend stay separate. Combined work totals live on the spend chips.</div>`,
+  );
   return parts.join("");
 }
 
@@ -282,19 +334,20 @@ function chartSvg(points: ChartPoint[]): string {
     const v = (max * i) / 4;
     const yy = y(v).toFixed(1);
     out.push(`<line class="grid-line" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" />`);
-    out.push(`<text class="axis" x="${L - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle">${shortMoney(v)}</text>`);
+    out.push(
+      `<text class="axis" x="${L - 6}" y="${yy}" text-anchor="end" dominant-baseline="middle">${shortMoney(v)}</text>`,
+    );
   }
-
   const ticks = [...new Set([1, 8, 15, 22, n])].filter((d) => d >= 1 && d <= n);
   for (const d of ticks) {
     out.push(`<text class="axis" x="${x(d).toFixed(1)}" y="${H - 6}" text-anchor="middle">${d}</text>`);
   }
-
-  // Actual MTD: break the line wherever a day was never recorded.
   let segment: string[] = [];
   const flush = () => {
     if (segment.length > 1) {
-      out.push(`<polyline fill="none" stroke="${CHART_COLORS.actual}" stroke-width="2" stroke-linejoin="round" points="${segment.join(" ")}" />`);
+      out.push(
+        `<polyline fill="none" stroke="${CHART_COLORS.actual}" stroke-width="2" stroke-linejoin="round" points="${segment.join(" ")}" />`,
+      );
     } else if (segment.length === 1) {
       const [cx, cy] = segment[0].split(",");
       out.push(`<circle cx="${cx}" cy="${cy}" r="2" fill="${CHART_COLORS.actual}" />`);
@@ -306,7 +359,6 @@ function chartSvg(points: ChartPoint[]): string {
     else segment.push(pt(p.day, p.actualUSD));
   }
   flush();
-
   const projected = points.filter((p) => p.projectedUSD !== null);
   if (projected.length > 1) {
     out.push(
@@ -317,21 +369,24 @@ function chartSvg(points: ChartPoint[]): string {
   }
   const last = projected[projected.length - 1];
   if (last && last.projectedUSD !== null) {
-    out.push(`<circle cx="${x(last.day).toFixed(1)}" cy="${y(last.projectedUSD).toFixed(1)}" r="4" fill="${CHART_COLORS.projected}" />`);
+    out.push(
+      `<circle cx="${x(last.day).toFixed(1)}" cy="${y(last.projectedUSD).toFixed(1)}" r="4" fill="${CHART_COLORS.projected}" />`,
+    );
   }
   const today = points.find((p) => p.isToday && p.actualUSD !== null);
   if (today && today.actualUSD !== null) {
-    out.push(`<circle cx="${x(today.day).toFixed(1)}" cy="${y(today.actualUSD).toFixed(1)}" r="4" fill="${CHART_COLORS.today}" />`);
+    out.push(
+      `<circle cx="${x(today.day).toFixed(1)}" cy="${y(today.actualUSD).toFixed(1)}" r="4" fill="${CHART_COLORS.today}" />`,
+    );
   }
-
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Month-to-date work spend">${out.join("")}</svg>`;
 }
 
 function spendView(st: AppState): string {
-  const parts = [noticeHtml()];
+  const parts = [noticeHtml(), `<h2 class="page-title">Month-to-date spend</h2>`];
   if (!st.combined) {
     parts.push(
-      `<div class="note">Work spend shows once Claude, Cursor (work), or ChatGPT (work credits) has data. Turn one on under Overview or Options.</div>`,
+      `<div class="note">Work spend shows once Claude, Cursor (work), or ChatGPT (work credits) has data.</div>`,
     );
   } else {
     parts.push(
@@ -348,13 +403,9 @@ function spendView(st: AppState): string {
         <span><span class="swatch" style="background:${CHART_COLORS.projected}"></span>Projected to month-end</span>
         <span><span class="swatch" style="background:${CHART_COLORS.today}"></span>Today</span>
       </div>`);
-      parts.push(
-        `<div class="muted">Earlier days only appear after TokenPulse has recorded them in spend-ledger.json.</div>`,
-      );
     }
   }
-
-  const rows: [string, string][] = st.sources
+  const rows: [string, string][] = orderedSources(st)
     .filter((s) => s.enabled && s.monthUSD !== undefined)
     .map((s) => {
       const label = s.id === "openai" ? `${s.name} (not in work total)` : s.name;
@@ -369,17 +420,17 @@ function sourceView(st: AppState, id: SourceId): string {
   const s = st.sources.find((x) => x.id === id);
   if (!s) return `<div class="note err">Unknown source.</div>`;
   const parts = [noticeHtml()];
-  parts.push(`<div class="card-head">
-    <span class="dot ${s.status}"></span>
-    <h2>${escapeHtml(s.name)}</h2>
-    <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span>
+  parts.push(`<div class="card-head detail-head">
+    ${providerMark(s.id, 28)}
+    <div>
+      <h2>${escapeHtml(s.name)}</h2>
+      <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span>
+    </div>
     <span class="spacer"></span>
     <span class="status-line ${s.status}">${STATUS_LABEL[s.status]}${s.fetchedAt ? ` · ${escapeHtml(clockTime(s.fetchedAt))}` : ""}</span>
   </div>`);
-
   parts.push(`<div class="form-row">${togglesHtml(s)}<span class="spacer"></span>${accountSelectHtml(s)}</div>`);
   if (s.credential) parts.push(`<div class="note">${escapeHtml(s.credential)}</div>`);
-
   if (s.enabled) {
     const figs: [string, string][] = [];
     if (s.todayUSD !== undefined) figs.push(["Today", money(s.todayUSD)]);
@@ -394,52 +445,113 @@ function sourceView(st: AppState, id: SourceId): string {
     if (s.lines.length > 0) {
       parts.push(`<div><h3>Details</h3>${rowsHtml(s.lines.map((l) => [l.label, l.value]))}</div>`);
     }
-    if (s.status === "loading" && !s.message) parts.push(`<div class="muted">Loading…</div>`);
   } else {
     parts.push(`<div class="muted">Off. Turn on Enable to start reading it.</div>`);
   }
-
   if (id === "openai" && !st.openAIKeyConfigured) {
     parts.push(
       `<div class="form-row"><button class="btn primary" data-act="go" data-route="options">Add OpenAI Admin key…</button></div>`,
     );
   }
+  parts.push(
+    `<div class="form-row"><button class="btn" data-act="go" data-route="options">Provider options</button></div>`,
+  );
   return parts.join("");
+}
+
+function efficiencyView(st: AppState): string {
+  const claude = st.sources.find((s) => s.id === "claude");
+  const on = claude?.enabled === true;
+  return `${noticeHtml()}
+    <h2 class="page-title">Efficiency</h2>
+    <p class="muted">Claude Code local analysis · estimates only.</p>
+    ${
+      on
+        ? `<div class="card stub">
+            <div class="stub-title">Scoreboard not wired in this build</div>
+            <p class="muted">Session scoring, streaks, and badges ship with the Efficiency engine. Open the Scoreboard tab for the full shell, or use Claude provider options.</p>
+            <button class="btn" data-act="go" data-route="source:claude">Claude provider options</button>
+          </div>`
+        : `<div class="card stub">
+            <div class="stub-title">Efficiency needs Claude</div>
+            <p class="muted">Turn on Claude and let local sessions accumulate, then scores appear here.</p>
+            <button class="btn primary" data-act="go" data-route="source:claude">Claude provider options</button>
+          </div>`
+    }`;
+}
+
+function scoreboardView(st: AppState): string {
+  const claude = st.sources.find((s) => s.id === "claude");
+  const on = claude?.enabled === true;
+  return `${noticeHtml()}
+    <h2 class="page-title">Efficiency Scoreboard</h2>
+    <p class="muted">Claude Code local analysis · estimate disclaimer.</p>
+    <div class="metrics">
+      <div class="metric stub-metric"><div class="k">Efficiency grade</div><div class="v cyan">—</div><div class="muted">/100</div></div>
+      <div class="metric stub-metric"><div class="k">Current streak</div><div class="v">—</div><div class="muted">days ≥80</div></div>
+    </div>
+    <div class="card stub">
+      <div class="stub-title">${on ? "No scored sessions yet" : "Claude is off"}</div>
+      <p class="muted">${
+        on
+          ? "Model fit, context discipline, and cost hygiene rows appear once local Claude Code sessions are analyzed."
+          : "Enable Claude to unlock the scoreboard."
+      }</p>
+      <button class="btn" data-act="go" data-route="source:claude">Claude provider options</button>
+    </div>
+    <h3>Badges</h3>
+    <div class="badge-grid">
+      ${["Cache Master", "Sonnet Saver", "Right Model", "Lean Context", "7-Day Streak", "30-Day Streak", "Personal Best"]
+        .map((b) => `<div class="achieve off"><span class="ach-mark">○</span>${escapeHtml(b)}</div>`)
+        .join("")}
+    </div>`;
+}
+
+function alertsView(): string {
+  return `${noticeHtml()}
+    <h2 class="page-title">Alerts</h2>
+    <div class="card stub empty-alerts">
+      <div class="stub-title">No advisories this session.</div>
+      <p class="muted">Allowance and model-spend advisories show here when they fire.</p>
+    </div>`;
 }
 
 function optionsView(st: AppState): string {
   const p = st.prefs;
-  const parts = [noticeHtml()];
+  const parts = [noticeHtml(), `<h2 class="page-title">Display &amp; options</h2>`];
 
   const refreshOpts = REFRESH_CHOICES.map(
-    (m) => `<option value="${m}" ${m === p.refreshMinutes ? "selected" : ""}>${m} min</option>`,
+    (m) => `<option value="${m}" ${m === p.refreshMinutes ? "selected" : ""}>${m} minutes</option>`,
   ).join("");
-  parts.push(`<div><h3>General</h3><div class="card">
+  parts.push(`<div class="opt-section"><h3>Check usage every</h3><div class="card">
     <div class="form-row">
-      <span>Refresh every</span>
       <select data-act="refresh-minutes" aria-label="Refresh interval">${refreshOpts}</select>
       <span class="muted">Remote sources still wait a few minutes between network calls.</span>
     </div>
     <label class="toggle"><input type="checkbox" data-act="login" ${p.openAtLogin ? "checked" : ""} /> Open at login</label>
   </div></div>`);
 
-  const sourceRows = st.sources
-    .map(
-      (s) => `<div class="row">
-        <span class="k"><span class="dot ${s.status}" style="display:inline-block;margin-right:6px"></span>${escapeHtml(s.name)}</span>
-        <span class="v form-row">${togglesHtml(s)}${accountSelectHtml(s)}</span>
-      </div>`,
-    )
-    .join("");
-  parts.push(`<div><h3>Sources</h3><div class="table">${sourceRows}</div></div>`);
+  parts.push(`<div class="opt-section"><h3>Sources</h3>`);
+  for (const s of orderedSources(st)) {
+    parts.push(`<div class="card opt-source">
+      <div class="card-head">
+        ${providerMark(s.id, 16)}
+        <span class="name">${escapeHtml(s.name)}</span>
+        <span class="spacer"></span>
+        <button class="link" data-act="go" data-route="source:${s.id}">Open ›</button>
+      </div>
+      <div class="form-row">${togglesHtml(s)}${accountSelectHtml(s)}</div>
+    </div>`);
+  }
+  parts.push(`</div>`);
 
-  parts.push(`<div><h3>Cursor</h3><div class="card">
+  parts.push(`<div class="opt-section"><h3>Cursor</h3><div class="card">
     <div class="form-row">
       <span>Personal included allowance</span>
       <input type="number" id="opt-allowance" min="1" step="1" value="${p.cursorPersonalAllowanceUSD}" />
       <button class="btn" data-act="save-allowance">Save</button>
     </div>
-    <div class="muted">Used for the Personal allowance meter when Cursor does not report a plan limit.</div>
+    <div class="muted">Used when Cursor does not report a plan limit.</div>
   </div></div>`);
 
   const keyBlock = st.openAIKeyConfigured
@@ -452,13 +564,13 @@ function optionsView(st: AppState): string {
         <input type="password" id="opt-key" placeholder="sk-admin-…" autocomplete="off" spellcheck="false" />
         <button class="btn primary" data-act="save-key" ${busy ? "disabled" : ""}>Save and test</button>
       </div>
-      <div class="muted">Create one in OpenAI Platform under Organization → Admin keys. A normal sk-proj- key is rejected.
+      <div class="muted">Organization Admin key from OpenAI Platform.
         <button class="link" data-act="open-url" data-url="https://platform.openai.com/settings/organization/admin-keys">Open OpenAI Platform</button></div>`;
   const bal = p.openAIBalance;
   const balanceLine = bal
-    ? `<div class="muted">Entered ${money(bal.enteredUSD)} on ${escapeHtml(dateTime(bal.dayStart))}. New costs are subtracted from that.</div>`
-    : `<div class="muted">Optional. Enter the prepaid balance from OpenAI Billing and TokenPulse will count it down.</div>`;
-  parts.push(`<div><h3>OpenAI API</h3><div class="card">
+    ? `<div class="muted">Entered ${money(bal.enteredUSD)} on ${escapeHtml(dateTime(bal.dayStart))}.</div>`
+    : `<div class="muted">Optional prepaid balance countdown.</div>`;
+  parts.push(`<div class="opt-section"><h3>OpenAI API</h3><div class="card">
     ${keyBlock}
     <div class="form-row">
       <span>Current prepaid balance</span>
@@ -470,14 +582,14 @@ function optionsView(st: AppState): string {
   </div></div>`);
 
   const resetArmed = Date.now() < resetArmedUntil;
-  parts.push(`<div><h3>Data</h3><div class="card">
+  parts.push(`<div class="opt-section"><h3>Data</h3><div class="card">
     <div class="form-row">
       <span class="muted" style="flex:1;overflow-wrap:anywhere">${escapeHtml(st.dataDir)}</span>
       <button class="btn" data-act="open-data">Open folder</button>
     </div>
     <div class="form-row">
-      <button class="btn danger" data-act="reset">${resetArmed ? "Click again to reset" : "Reset to defaults"}</button>
-      <span class="muted">Clears source and refresh choices. Saved API keys are kept.</span>
+      <button class="btn danger" data-act="reset">${resetArmed ? "Click again to reset" : "Reset to defaults…"}</button>
+      <span class="muted">Clears layout and visibility. Saved API keys are kept.</span>
     </div>
   </div></div>`);
 
@@ -487,6 +599,10 @@ function optionsView(st: AppState): string {
 
 // ---------- render ----------
 
+function isNestedRoute(): boolean {
+  return route.startsWith("source:") || route === "options" || route === "spend";
+}
+
 function renderHeader(st: AppState): void {
   el.spinner.classList.toggle("hidden", !st.refreshing);
   el.refresh.disabled = st.refreshing;
@@ -494,7 +610,7 @@ function renderHeader(st: AppState): void {
   el.updated.textContent = st.updatedAt
     ? `Updated ${clockTime(st.updatedAt)} · ${on} of ${st.sources.length} sources on`
     : "Connecting to your sources…";
-  el.back.hidden = !route.startsWith("source:");
+  el.back.hidden = !isNestedRoute();
 }
 
 function renderTabs(): void {
@@ -505,7 +621,7 @@ function renderTabs(): void {
 
 function renderChips(st: AppState): void {
   if (!st.combined) {
-    el.chips.innerHTML = `<span class="chip waiting">No work spend yet</span>`;
+    el.chips.innerHTML = "";
     return;
   }
   const active = route === "spend" ? " active" : "";
@@ -518,18 +634,23 @@ function renderChips(st: AppState): void {
 }
 
 function renderSidebar(st: AppState): void {
-  const item = (r: Route, label: string, dot?: SourceStatus) =>
-    `<button class="side-item${route === r ? " active" : ""}" data-act="go" data-route="${r}">${
-      dot ? `<span class="dot ${dot}"></span>` : ""
-    }${escapeHtml(label)}</button>`;
-  el.sidebar.innerHTML = [
-    item("overview", "Overview"),
-    ...st.sources.map((s) => item(`source:${s.id}`, s.name, s.status)),
-  ].join("");
+  el.sidebar.innerHTML = orderedSources(st)
+    .map((s) => {
+      const r = `source:${s.id}` as Route;
+      const selected = route === r;
+      return `<button class="side-item${selected ? " active" : ""}" data-act="go" data-route="${r}">
+        ${providerMark(s.id, 16)}
+        <span>${escapeHtml(s.name)}</span>
+        <span class="dot ${s.status}"></span>
+      </button>`;
+    })
+    .join("");
 }
 
 function renderFoot(st: AppState): void {
-  el.footLeft.textContent = `v${st.version} · refresh every ${st.prefs.refreshMinutes} min`;
+  el.footLeft.textContent = st.updatedAt
+    ? `Updated ${clockTime(st.updatedAt)} · v${st.version}`
+    : `v${st.version} · refresh every ${st.prefs.refreshMinutes} min`;
 }
 
 function editingInContent(): boolean {
@@ -542,6 +663,9 @@ function renderContent(st: AppState): void {
   let html: string;
   if (route === "overview") html = overviewView(st);
   else if (route === "spend") html = spendView(st);
+  else if (route === "efficiency") html = efficiencyView(st);
+  else if (route === "scoreboard") html = scoreboardView(st);
+  else if (route === "alerts") html = alertsView();
   else if (route === "options") html = optionsView(st);
   else html = sourceView(st, route.slice("source:".length) as SourceId);
   el.inner.innerHTML = html;
@@ -578,7 +702,16 @@ async function load(force = false): Promise<void> {
 function go(next: Route): void {
   if (next !== route) notice = null;
   route = next;
-  if (next === "overview" || next === "spend" || next === "options") lastMainRoute = next;
+  if (
+    next === "overview" ||
+    next === "spend" ||
+    next === "efficiency" ||
+    next === "scoreboard" ||
+    next === "alerts" ||
+    next === "options"
+  ) {
+    lastMainRoute = next;
+  }
   el.content.scrollTop = 0;
   render(true);
 }
@@ -761,7 +894,7 @@ document.querySelectorAll<HTMLButtonElement>(".tab").forEach((t) => {
 
 el.refresh.addEventListener("click", () => void runAction("refresh", el.refresh));
 el.options.addEventListener("click", () => go("options"));
-el.back.addEventListener("click", () => go(lastMainRoute));
+el.back.addEventListener("click", () => go(lastMainRoute === "options" || lastMainRoute === "spend" ? "overview" : lastMainRoute));
 el.quit.addEventListener("click", () => void api.quit());
 
 document.addEventListener("keydown", (e) => {
@@ -774,6 +907,9 @@ document.addEventListener("keydown", (e) => {
   } else if (mod && e.key === ",") {
     e.preventDefault();
     go("options");
+  } else if (mod && e.key.toLowerCase() === "q") {
+    e.preventDefault();
+    void api.quit();
   }
 });
 

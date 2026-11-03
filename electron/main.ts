@@ -7,6 +7,7 @@ import { dataDir, ledgerPath, prefsPath, pricingCandidates } from "./paths";
 import { PrefsStore } from "./prefs";
 import { Pricing } from "./pricing";
 import { createTrayIcon } from "./tray";
+import { blocksFromSources, createStatusBarImage } from "./statusBar";
 import { startOfDay } from "./format";
 import { fetchOpenAISpend } from "./sources/openai";
 import { SourceError } from "./http";
@@ -114,13 +115,26 @@ function togglePanel(): void {
 
 function updateTray(): void {
   if (!tray) return;
+  const st = engine.state();
+  const blocks = blocksFromSources(st.sources);
   const { title, tooltip } = engine.trayText();
+  try {
+    const image = blocks.length > 0 ? createStatusBarImage(blocks) : createTrayIcon();
+    if (!image.isEmpty()) tray.setImage(image);
+  } catch {
+    tray.setImage(createTrayIcon());
+  }
   if (process.platform === "darwin") {
-    tray.setTitle(title ? ` ${title}` : "", { fontType: "monospacedDigit" });
+    // Capsules carry the metrics; keep title empty so we don't double-paint.
+    tray.setTitle("");
     tray.setToolTip(tooltip);
   } else {
     const compact = title ? `TokenPulse\n${title.split("  ").join("\n")}` : tooltip;
-    tray.setToolTip(compact.length > WIN_TOOLTIP_MAX ? `${compact.slice(0, WIN_TOOLTIP_MAX - 1)}…` : compact);
+    tray.setToolTip(
+      compact.length > WIN_TOOLTIP_MAX
+        ? `${compact.slice(0, WIN_TOOLTIP_MAX - 1)}…`
+        : compact,
+    );
   }
 }
 
