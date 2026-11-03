@@ -1036,9 +1036,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return nil
     }
 
-    /// Prefer the real ChatGPT icon copied into the TokenPulse bundle during
-    /// local installation. Fall back to a live ChatGPT app resource when the
-    /// bundle was assembled manually before that copy step.
+    /// ChatGPT mark shipped in the app bundle. A live ChatGPT.app resource is
+    /// only a fallback for a bundle assembled without Artwork/icon-chatgpt.png.
     private func chatGPTIcon(size: CGFloat? = nil) -> NSImage? {
         let bundled = Bundle.main.path(forResource: "icon-chatgpt", ofType: "png")
         let paths = [
@@ -1055,8 +1054,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return size == nil && Prefs.barSizes.trimIcons ? visibleMark(of: image, key: path) : image
     }
 
-    /// Prefer Grok Bot's app icon (bundled PNG from `make-app.sh`, or the live
-    /// `.icns` next to `/Applications/Grok Bot.app`). SF Symbol bolt is fallback.
+    /// Grok Bot mark shipped in the app bundle. A live Grok Bot.app icon is
+    /// only a fallback for a bundle assembled without Artwork/icon-grokbot.png.
     private func grokBotIcon(size: CGFloat? = nil) -> NSImage? {
         let bundled = Bundle.main.path(forResource: "icon-grokbot", ofType: "png")
         let paths = [
