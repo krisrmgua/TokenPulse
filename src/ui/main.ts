@@ -228,7 +228,7 @@ function sourceCard(s: SourceSnapshot): string {
   if (!s.enabled) {
     return `<article class="card off compact" data-act="go" data-route="source:${s.id}">
       <div class="card-head">
-        ${providerMark(s.id, 16)}
+        ${providerMark(s.id, 22)}
         <span class="name">${escapeHtml(s.name)}</span>
         <span class="spacer"></span>
         <span class="dot ${s.status}"></span>
@@ -238,7 +238,7 @@ function sourceCard(s: SourceSnapshot): string {
   }
   return `<article class="card${s.status === "stale" ? " stale" : ""}">
     <div class="card-head">
-      ${providerMark(s.id, 20)}
+      ${providerMark(s.id, 26)}
       <div class="card-titles">
         <span class="name" data-act="go" data-route="source:${s.id}">${escapeHtml(s.name)}</span>
         <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span>
@@ -383,7 +383,7 @@ function sourceView(st: AppState, id: SourceId): string {
   if (!s) return `<div class="note err">Unknown source.</div>`;
   const parts = [noticeHtml()];
   parts.push(`<div class="card-head detail-head">
-    ${providerMark(s.id, 28)}
+    ${providerMark(s.id, 36)}
     <div>
       <h2>${escapeHtml(s.name)}</h2>
       <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span>
@@ -506,7 +506,7 @@ function optionsView(st: AppState): string {
     const style = barDesignTitle(st.prefs.sources[s.id].barDesign);
     parts.push(`<button class="card opt-source provider-btn" data-act="go" data-route="settings:${s.id}">
       <div class="card-head">
-        ${providerMark(s.id, 20)}
+        ${providerMark(s.id, 26)}
         <div class="card-titles">
           <span class="name">${escapeHtml(s.name)}${escapeHtml(mode)}</span>
           <span class="muted">${s.enabled ? "On" : "Off"} · ${escapeHtml(style)}</span>
@@ -546,7 +546,7 @@ function settingsView(st: AppState, id: SourceId): string {
   const parts = [
     noticeHtml(),
     `<div class="card-head detail-head">
-      ${providerMark(s.id, 28)}
+      ${providerMark(s.id, 36)}
       <div><h2>${escapeHtml(s.name)} · options</h2>
       <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span></div>
     </div>`,
@@ -665,7 +665,7 @@ function renderSidebar(st: AppState): void {
       const r = `source:${s.id}` as Route;
       const selected = route === r;
       return `<button class="side-item${selected ? " active" : ""}" data-act="go" data-route="${r}">
-        ${providerMark(s.id, 16)}
+        ${providerMark(s.id, 22)}
         <span>${escapeHtml(s.name)}</span>
         <span class="dot ${s.status}"></span>
       </button>`;
