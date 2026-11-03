@@ -1332,8 +1332,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // Nothing to soften while every figure is drawn in the label color.
         pastel.isEnabled = Prefs.spendColorsEnabled
         sub.addItem(pastel)
-        sub.addItem(toggle("Increase menu bar size",
-                           #selector(toggleIncreaseBarSize), Prefs.increaseBarSize))
         sub.addItem(toggle("Reopen where I left off", #selector(toggleRememberPanelPlace), Prefs.rememberPanelPlace))
         sub.addItem(.separator())
         sub.addItem(chatGPTOptionsItem(toggle: toggle))
@@ -1990,11 +1988,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     @objc private func togglePastelBarColors() {
         Prefs.pastelBarColors.toggle()
-        rerender()
-    }
-
-    @objc private func toggleIncreaseBarSize() {
-        Prefs.increaseBarSize.toggle()
         rerender()
     }
 

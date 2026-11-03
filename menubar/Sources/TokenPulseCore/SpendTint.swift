@@ -55,7 +55,7 @@ enum SpendTint {
     /// Menu-bar color. Either palette is fixed rather than appearance-following:
     /// the bar's appearance flips with whatever window happens to sit behind it,
     /// so following it makes the figures change shade as the user switches
-    /// windows. Pastel is opt-in via the dropdown's Options section.
+    /// windows. Pastel defaults on; toggle it under Options.
     func barColor(goodStyle: GoodZoneStyle = .green) -> NSColor? {
         let pastel = Prefs.pastelBarColors
         switch self {
