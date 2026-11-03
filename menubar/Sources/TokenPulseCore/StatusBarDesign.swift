@@ -188,7 +188,9 @@ enum StatusBarArtwork {
                       dark: Bool = Prefs.darkBarBackground, enlarged: Bool = Prefs.increaseBarSize,
                       dimStale: Bool = false) -> NSImage {
         let iconSize: CGFloat = enlarged ? 14 : 13
-        let height: CGFloat = blocks.contains(where: \.design.stacked) ? 24 : 22
+        // Baseline meters need two points under the bar. Stacked styles already use 24.
+        func chromeHeight(_ design: StatusBarDesign) -> CGFloat { design.stacked || design == .baseline ? 24 : 22 }
+        let height: CGFloat = blocks.map { chromeHeight($0.design) }.max() ?? 22
         func fonts(for design: StatusBarDesign) -> (NSFont, NSFont) {
             let value = NSFont.monospacedDigitSystemFont(ofSize: design.stacked ? 11 : enlarged ? 12 : 11, weight: .semibold)
             let label = NSFont.systemFont(ofSize: design.stacked ? 10 : enlarged ? 11 : 10, weight: .semibold)
@@ -229,7 +231,7 @@ enum StatusBarArtwork {
             for (index, block) in blocks.enumerated() {
                 let design = block.design
                 let (font, labelFont) = fonts(for: design)
-                let blockHeight: CGFloat = design.stacked ? 24 : 22
+                let blockHeight = chromeHeight(design)
                 let y0 = (height - blockHeight) / 2
                 NSGraphicsContext.saveGraphicsState()
                 if block.stale && dimStale { NSGraphicsContext.current?.cgContext.setAlpha(0.4) }
