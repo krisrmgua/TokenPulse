@@ -59,10 +59,11 @@ button {
 }
 
 .mark {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   background: var(--bg);
   border-radius: 7px;
+  flex: none;
 }
 
 .mark-track {
@@ -89,7 +90,7 @@ button {
 }
 
 .brand {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
 }
 
@@ -269,11 +270,25 @@ button {
   color: var(--muted);
   cursor: pointer;
   text-align: left;
+  width: 100%;
+}
+
+.side-item > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .side-item.active {
   background: var(--bg);
   color: var(--ink);
+}
+
+.pmark {
+  flex: none;
+  display: block;
 }
 
 .dot {
@@ -631,4 +646,111 @@ input[type="number"] {
 .status-line.stale,
 .status-line.loading {
   color: var(--amber);
+}
+
+.card-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.card.compact {
+  min-height: 0;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.disabled-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.spend-headline {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.details {
+  align-self: flex-start;
+  font-size: 11px;
+  color: var(--cyan);
+}
+
+.foot-note {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.page-title {
+  font-size: 18px;
+  margin: 0;
+}
+
+.detail-head {
+  margin-bottom: 4px;
+}
+
+.detail-head h2 {
+  margin: 0 0 4px;
+}
+
+.opt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opt-source {
+  gap: 10px;
+}
+
+.stub {
+  gap: 10px;
+}
+
+.stub-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.stub-metric .v.cyan {
+  color: var(--cyan);
+  font-size: 28px;
+}
+
+.badge-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.achieve {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 12px;
+}
+
+.achieve.off {
+  opacity: 0.55;
+}
+
+.ach-mark {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.empty-alerts .stub-title {
+  color: var(--muted);
+}
+
+.btn.icon svg {
+  display: block;
 }
