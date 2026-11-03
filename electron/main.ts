@@ -7,6 +7,7 @@ import { dataDir, ledgerPath, prefsPath, pricingCandidates } from "./paths";
 import { PrefsStore } from "./prefs";
 import { Pricing } from "./pricing";
 import { createTrayIcon } from "./tray";
+import { providerIconMap } from "./providerArt";
 import { blocksFromSources, createStatusBarImage } from "./statusBar";
 import { startOfDay } from "./format";
 import { fetchOpenAISpend } from "./sources/openai";
@@ -14,6 +15,7 @@ import { SourceError } from "./http";
 import {
   SOURCE_IDS,
   type ActionResult,
+  type AppState,
   type Prefs,
   type SourceId,
   type SourcePrefs,
@@ -113,14 +115,23 @@ function togglePanel(): void {
   void engine.refresh(false);
 }
 
+function withIcons(st: AppState): AppState {
+  return {
+    ...st,
+    icons: providerIconMap(32, st.prefs.themedProviderLogos),
+  };
+}
+
 function updateTray(): void {
   if (!tray) return;
   const st = engine.state();
-  const blocks = blocksFromSources(st.sources);
+  const blocks = blocksFromSources(st.sources, st.prefs);
   const { title, tooltip } = engine.trayText();
   try {
-    const image = blocks.length > 0 ? createStatusBarImage(blocks) : createTrayIcon();
+    const image =
+      blocks.length > 0 ? createStatusBarImage(blocks, st.prefs) : createTrayIcon();
     if (!image.isEmpty()) tray.setImage(image);
+    else tray.setImage(createTrayIcon());
   } catch {
     tray.setImage(createTrayIcon());
   }
@@ -165,11 +176,11 @@ async function testOpenAIKey(key: string): Promise<ActionResult> {
 }
 
 function wireIpc(): void {
-  ipcMain.handle("tp:getState", () => engine.state());
+  ipcMain.handle("tp:getState", () => withIcons(engine.state()));
 
   ipcMain.handle("tp:refresh", async () => {
     await engine.refresh(true);
-    return engine.state();
+    return withIcons(engine.state());
   });
 
   ipcMain.handle("tp:setSource", (_e, id: unknown, patch: Partial<SourcePrefs>): ActionResult => {
@@ -198,6 +209,10 @@ function wireIpc(): void {
       refreshMinutes: patch.refreshMinutes,
       cursorPersonalAllowanceUSD: patch.cursorPersonalAllowanceUSD,
       openAtLogin: patch.openAtLogin,
+      themedProviderLogos: patch.themedProviderLogos,
+      darkBarBackground: patch.darkBarBackground,
+      spendColorsEnabled: patch.spendColorsEnabled,
+      pastelBarColors: patch.pastelBarColors,
     });
     if (typeof patch.openAtLogin === "boolean") {
       app.setLoginItemSettings({ openAtLogin: patch.openAtLogin });

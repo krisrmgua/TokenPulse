@@ -1,5 +1,8 @@
+import type { BarDesign } from "./barDesign";
+
 export type SourceId = "claude" | "cursor" | "chatgpt" | "openai" | "grokbot";
 export type AccountMode = "work" | "personal";
+export type { BarDesign };
 
 export const SOURCE_IDS: SourceId[] = [
   "claude",
@@ -7,6 +10,15 @@ export const SOURCE_IDS: SourceId[] = [
   "chatgpt",
   "openai",
   "grokbot",
+];
+
+/** Swift menu-bar / Mission Control provider order. */
+export const PROVIDER_ORDER: SourceId[] = [
+  "chatgpt",
+  "cursor",
+  "grokbot",
+  "openai",
+  "claude",
 ];
 
 export const SOURCE_NAMES: Record<SourceId, string> = {
@@ -30,6 +42,12 @@ export interface SourcePrefs {
   enabled: boolean;
   showInTray: boolean;
   account: AccountMode;
+  /** Per-provider capsule layout (Swift Menu bar style). */
+  barDesign: BarDesign;
+  /** Work spend: show D in the menu bar. */
+  showDailyInBar: boolean;
+  /** Work spend: show M in the menu bar. */
+  showMonthlyInBar: boolean;
 }
 
 export interface OpenAIBalanceBaseline {
@@ -46,6 +64,14 @@ export interface Prefs {
   cursorPersonalAllowanceUSD: number;
   openAtLogin: boolean;
   openAIBalance?: OpenAIBalanceBaseline;
+  /** Cyan-on-navy provider tiles (Swift themedProviderLogos). */
+  themedProviderLogos: boolean;
+  /** Draw navy capsules behind each provider block. */
+  darkBarBackground: boolean;
+  /** Tint spend / remaining figures by threshold. */
+  spendColorsEnabled: boolean;
+  /** Soften hot colors in the menu bar. */
+  pastelBarColors: boolean;
 }
 
 export const REFRESH_CHOICES = [1, 2, 3, 5, 10, 15, 30];
@@ -110,6 +136,8 @@ export interface AppState {
   openAIKeyConfigured: boolean;
   dataDir: string;
   version: string;
+  /** data:image/png icons for the panel (themed per prefs). */
+  icons: Record<SourceId, string>;
 }
 
 export interface ActionResult {

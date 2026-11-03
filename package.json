@@ -1,7 +1,7 @@
 {
   "name": "tokenpulse",
   "productName": "TokenPulse",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "AI allowance and spend tracker for the macOS menu bar and the Windows system tray",
   "main": "dist-electron/main.js",
   "author": "Kristopher Simmons",
@@ -29,7 +29,7 @@
       "dist/**/*",
       "dist-electron/**/*",
       "package.json",
-      "assets/**/*"
+      "menubar/Artwork/icon-*.png"
     ],
     "extraResources": [
       {
@@ -37,10 +37,10 @@
         "to": "pricing.json"
       },
       {
-        "from": "assets",
-        "to": "assets",
+        "from": "menubar/Artwork",
+        "to": "Artwork",
         "filter": [
-          "**/*"
+          "icon-*.png"
         ]
       }
     ],

@@ -1,31 +1,31 @@
 import { nativeImage } from "electron";
-import { providerMarkDataUrl } from "./providerArt";
+import { isStacked, type BarDesign } from "./barDesign";
 import { shortMoney } from "./format";
-import type { SourceId, SourceSnapshot } from "./types";
+import { encodePng } from "./iconRaster";
+import { ART_CYAN, ART_INK, providerIconRgba } from "./providerArt";
+import {
+  PROVIDER_ORDER,
+  type Prefs,
+  type SourceId,
+  type SourceSnapshot,
+} from "./types";
 
-/** Swift menu-bar provider order (left → right). */
-export const TRAY_ORDER: SourceId[] = [
-  "chatgpt",
-  "cursor",
-  "grokbot",
-  "openai",
-  "claude",
-];
-
-const PANEL = "rgba(19, 41, 59, 0.95)";
-const EXHAUSTED = "rgba(77, 19, 20, 0.95)";
-const TRACK = "rgb(59, 82, 99)";
-const LABEL = "rgb(153, 173, 199)";
-const INK = "rgb(237, 245, 255)";
-const GREEN = "rgb(117, 224, 179)";
-const AMBER = "rgb(240, 204, 133)";
-const RED = "rgb(255, 143, 156)";
+const PANEL: [number, number, number] = [19, 41, 59];
+const EXHAUSTED: [number, number, number] = [77, 19, 20];
+const TRACK: [number, number, number] = [59, 82, 99];
+const LABEL: [number, number, number] = [153, 173, 199];
+const GREEN: [number, number, number] = [117, 224, 179];
+const AMBER: [number, number, number] = [240, 204, 133];
+const RED: [number, number, number] = [255, 143, 156];
+const PASTEL_GREEN: [number, number, number] = [199, 245, 199];
+const PASTEL_AMBER: [number, number, number] = [255, 227, 184];
+const PASTEL_RED: [number, number, number] = [255, 194, 191];
 
 export interface StatusMetric {
   label: string;
   value: string;
   percent?: number;
-  color: string;
+  color: [number, number, number];
 }
 
 export interface StatusBlock {
@@ -33,36 +33,34 @@ export interface StatusBlock {
   metrics: StatusMetric[];
   stale: boolean;
   allowanceEmpty: boolean;
-  /** Spend-only → stack layout; otherwise divider. */
-  stacked: boolean;
+  design: BarDesign;
 }
 
-export function blocksFromSources(sources: SourceSnapshot[]): StatusBlock[] {
+export function blocksFromSources(sources: SourceSnapshot[], prefs: Prefs): StatusBlock[] {
   const byId = new Map(sources.map((s) => [s.id, s]));
   const out: StatusBlock[] = [];
-  for (const id of TRAY_ORDER) {
+  for (const id of PROVIDER_ORDER) {
     const s = byId.get(id);
     if (!s || !s.enabled || !s.showInTray) continue;
-    const metrics = metricsFor(s);
+    const sp = prefs.sources[id];
+    const metrics = metricsFor(s, sp, prefs);
     if (metrics.length === 0) continue;
     out.push({
       id,
       metrics,
       stale: s.status === "stale",
       allowanceEmpty: metrics.some((m) => m.percent !== undefined && m.percent <= 0),
-      stacked: isSpendOnly(s),
+      design: sp.barDesign,
     });
   }
   return out;
 }
 
-function isSpendOnly(s: SourceSnapshot): boolean {
-  if (s.id === "openai") return true;
-  if (s.id === "grokbot") return false;
-  return s.account === "work" && s.meters.length === 0;
-}
-
-function metricsFor(s: SourceSnapshot): StatusMetric[] {
+function metricsFor(
+  s: SourceSnapshot,
+  sp: Prefs["sources"][SourceId],
+  prefs: Prefs,
+): StatusMetric[] {
   if (s.meters.length > 0) {
     return s.meters.map((m) => {
       const pct = Math.max(0, Math.min(100, Math.round(m.percentLeft)));
@@ -80,7 +78,7 @@ function metricsFor(s: SourceSnapshot): StatusMetric[] {
         label,
         value: `${pct}%`,
         percent: pct,
-        color: tintRemaining(pct),
+        color: tintRemaining(pct, prefs),
       };
     });
   }
@@ -89,184 +87,388 @@ function metricsFor(s: SourceSnapshot): StatusMetric[] {
   if (s.id === "openai") {
     const balLine = s.lines.find((l) => /balance/i.test(l.label));
     if (balLine) {
-      metrics.push({ label: "B", value: balLine.value, color: INK });
-    } else if (s.monthUSD !== undefined) {
-      // No prepaid baseline — still show D/M spend.
+      metrics.push({ label: "B", value: balLine.value.replace(/\s/g, ""), color: ink(prefs) });
     }
   }
-  if (s.todayUSD !== undefined || s.monthUSD !== undefined) {
-    if (s.todayUSD !== undefined) {
-      metrics.push({
-        label: "D",
-        value: shortMoney(s.todayUSD),
-        color: INK,
-      });
-    }
-    if (s.monthUSD !== undefined) {
-      metrics.push({
-        label: "M",
-        value: shortMoney(s.monthUSD),
-        color: INK,
-      });
-    }
+  if (s.todayUSD !== undefined && sp.showDailyInBar) {
+    metrics.push({ label: "D", value: shortMoney(s.todayUSD), color: ink(prefs) });
+  }
+  if (s.monthUSD !== undefined && sp.showMonthlyInBar) {
+    metrics.push({ label: "M", value: shortMoney(s.monthUSD), color: ink(prefs) });
   }
   return metrics;
 }
 
-function tintRemaining(pct: number): string {
-  if (pct <= 10) return RED;
-  if (pct <= 25) return AMBER;
-  if (pct <= 50) return AMBER;
-  return GREEN;
+function ink(prefs: Prefs): [number, number, number] {
+  return prefs.themedProviderLogos ? ART_CYAN : ART_INK;
 }
 
-/** Approximate text width for SF Pro / Segoe semibold at given size. */
-function textWidth(s: string, fontSize: number): number {
+function tintRemaining(pct: number, prefs: Prefs): [number, number, number] {
+  if (!prefs.spendColorsEnabled) return ink(prefs);
+  const pastel = prefs.pastelBarColors;
+  if (pct <= 10) return pastel ? PASTEL_RED : RED;
+  if (pct <= 50) return pastel ? PASTEL_AMBER : AMBER;
+  return pastel ? PASTEL_GREEN : GREEN;
+}
+
+/** 5×7 glyphs for menu-bar metrics. */
+const GLYPHS: Record<string, number[]> = {
+  "0": [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+  "1": [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+  "2": [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
+  "3": [0b01110, 0b10001, 0b00001, 0b00110, 0b00001, 0b10001, 0b01110],
+  "4": [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+  "5": [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+  "6": [0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110],
+  "7": [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+  "8": [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+  "9": [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100],
+  $: [0b00100, 0b01110, 0b10101, 0b10100, 0b01110, 0b00101, 0b11110],
+  "%": [0b11001, 0b11010, 0b00010, 0b00100, 0b01000, 0b01011, 0b10011],
+  ".": [0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00100, 0b00100],
+  k: [0b10000, 0b10000, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010],
+  H: [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001],
+  W: [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b10101, 0b01010],
+  D: [0b11100, 0b10010, 0b10001, 0b10001, 0b10001, 0b10010, 0b11100],
+  M: [0b10001, 0b11011, 0b10101, 0b10001, 0b10001, 0b10001, 0b10001],
+  B: [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110],
+  P: [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000],
+  r: [0b00000, 0b00000, 0b10110, 0b11001, 0b10000, 0b10000, 0b10000],
+  o: [0b00000, 0b00000, 0b01110, 0b10001, 0b10001, 0b10001, 0b01110],
+  "—": [0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000],
+  "…": [0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b10101, 0b00000],
+  " ": [0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000],
+};
+
+function textWidth(s: string, scale: number): number {
   let w = 0;
   for (const ch of s) {
-    if (ch === "." || ch === "," || ch === " ") w += fontSize * 0.35;
-    else if (ch === "$" || ch === "%") w += fontSize * 0.62;
-    else if (ch >= "0" && ch <= "9") w += fontSize * 0.62;
-    else if (ch === "—" || ch === "…") w += fontSize * 0.7;
-    else w += fontSize * 0.58;
+    w += (GLYPHS[ch] ? 5 : 4) * scale + scale;
   }
-  return Math.ceil(w);
+  return Math.max(0, w - scale);
 }
 
-function escapeXml(s: string): string {
-  return s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+function drawText(
+  buf: Buffer,
+  width: number,
+  height: number,
+  s: string,
+  x: number,
+  y: number,
+  rgb: [number, number, number],
+  scale: number,
+): void {
+  let cx = Math.round(x);
+  const cy = Math.round(y);
+  for (const ch of s) {
+    const g = GLYPHS[ch] ?? GLYPHS["."];
+    for (let row = 0; row < 7; row++) {
+      for (let col = 0; col < 5; col++) {
+        if (((g[row] >> (4 - col)) & 1) === 0) continue;
+        for (let dy = 0; dy < scale; dy++) {
+          for (let dx = 0; dx < scale; dx++) {
+            put(buf, width, height, cx + col * scale + dx, cy + row * scale + dy, rgb, 255);
+          }
+        }
+      }
+    }
+    cx += 5 * scale + scale;
+  }
+}
+
+function put(
+  buf: Buffer,
+  w: number,
+  h: number,
+  x: number,
+  y: number,
+  rgb: [number, number, number],
+  a: number,
+): void {
+  if (x < 0 || y < 0 || x >= w || y >= h || a <= 0) return;
+  const i = (y * w + x) * 4;
+  const srcA = a / 255;
+  const dstA = buf[i + 3] / 255;
+  const outA = srcA + dstA * (1 - srcA);
+  if (outA <= 0) return;
+  buf[i] = Math.round((rgb[0] * srcA + buf[i] * dstA * (1 - srcA)) / outA);
+  buf[i + 1] = Math.round((rgb[1] * srcA + buf[i + 1] * dstA * (1 - srcA)) / outA);
+  buf[i + 2] = Math.round((rgb[2] * srcA + buf[i + 2] * dstA * (1 - srcA)) / outA);
+  buf[i + 3] = Math.round(outA * 255);
+}
+
+function fillRoundRect(
+  buf: Buffer,
+  width: number,
+  height: number,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+  r: number,
+  rgb: [number, number, number],
+  a: number,
+): void {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const cx = Math.min(Math.max(x + 0.5, r), w - r);
+      const cy = Math.min(Math.max(y + 0.5, r), h - r);
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+      const cover = d <= r - 0.5 ? 1 : d >= r + 0.5 ? 0 : r + 0.5 - d;
+      if (cover > 0) put(buf, width, height, x0 + x, y0 + y, rgb, Math.round(a * cover));
+    }
+  }
+}
+
+function blitIcon(
+  dest: Buffer,
+  dw: number,
+  dh: number,
+  icon: Buffer,
+  size: number,
+  ox: number,
+  oy: number,
+  alphaMul: number,
+): void {
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4;
+      const a = Math.round(icon[i + 3] * alphaMul);
+      if (a <= 0) continue;
+      put(dest, dw, dh, ox + x, oy + y, [icon[i], icon[i + 1], icon[i + 2]], a);
+    }
+  }
+}
+
+function chromeHeight(design: BarDesign): number {
+  return isStacked(design) || design === "baseline" ? 24 : 22;
 }
 
 /**
- * Compose menu-bar capsules as one Retina PNG (via SVG → nativeImage).
- * Matches Swift Divider / Compact stack chrome (height 22–24, radius 6).
+ * Compose distinct per-provider capsules as one Retina PNG for the tray.
  */
-export function createStatusBarImage(blocks: StatusBlock[]): Electron.NativeImage {
+export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Electron.NativeImage {
   if (blocks.length === 0) {
-    return emptyMark();
+    return nativeImage.createEmpty();
   }
 
-  const scale = 2;
-  const iconSize = 14;
-  const gap = 5;
-  const heights = blocks.map((b) => (b.stacked ? 24 : 22));
+  const scale = 2; // draw @2x then set scaleFactor
+  const iconSize = 14 * scale;
+  const gap = 5 * scale;
+  const pad = 7 * scale;
+  const heights = blocks.map((b) => chromeHeight(b.design) * scale);
   const height = Math.max(...heights);
+  const valueScale = 2;
+  const labelScale = 2;
 
   const widths = blocks.map((b) => {
-    const valueFont = b.stacked ? 11 : 12;
-    const labelFont = b.stacked ? 10 : 11;
-    let content: number;
-    if (b.stacked) {
-      const labels = Math.max(...b.metrics.map((m) => textWidth(m.label, labelFont)), 0);
-      const values = Math.max(...b.metrics.map((m) => textWidth(m.value, valueFont)), 0);
-      content = labels + 5 + values;
-    } else {
-      content =
-        b.metrics.reduce((sum, m, i) => {
-          const row =
-            textWidth(m.label, labelFont) + 4 + textWidth(m.value, valueFont);
-          return sum + row + (i > 0 ? 13 : 0);
-        }, 0) || 8;
+    if (isStacked(b.design)) {
+      const labels = Math.max(...b.metrics.map((m) => textWidth(m.label, labelScale)), 0);
+      const values = Math.max(...b.metrics.map((m) => textWidth(m.value, valueScale)), 0);
+      const track = b.design === "lanes" || b.design === "segments" ? 60 * scale : 0;
+      return pad + iconSize + pad + labels + 5 * scale + track + values + pad;
     }
-    return 7 + iconSize + 7 + content + 7;
+    let content = 0;
+    b.metrics.forEach((m, i) => {
+      const row =
+        textWidth(m.label, labelScale) +
+        4 * scale +
+        textWidth(m.value, valueScale) +
+        (b.design === "rings" && m.percent !== undefined ? 21 * scale : 0);
+      content += row + (i > 0 ? 13 * scale : 0);
+      if (b.design === "focus") content += 8 * scale;
+    });
+    return pad + iconSize + pad + Math.max(content, 8 * scale) + pad;
   });
+
   const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, blocks.length - 1);
+  const buf = Buffer.alloc(total * height * 4);
 
-  const parts: string[] = [];
   let x = 0;
-  for (let i = 0; i < blocks.length; i++) {
-    const b = blocks[i];
-    const bw = widths[i];
-    const bh = heights[i];
-    const y0 = (height - bh) / 2;
-    const fill = b.allowanceEmpty ? EXHAUSTED : PANEL;
-    const opacity = b.stale ? 0.45 : 1;
-    parts.push(
-      `<g opacity="${opacity}"><rect x="${x}" y="${y0}" width="${bw}" height="${bh}" rx="6" fill="${fill}"/>`,
-    );
-    const markHref = providerMarkDataUrl(b.id, 28, true);
-    parts.push(
-      `<image href="${markHref}" x="${x + 7}" y="${y0 + (bh - iconSize) / 2}" width="${iconSize}" height="${iconSize}"/>`,
+  for (let bi = 0; bi < blocks.length; bi++) {
+    const b = blocks[bi];
+    const bw = widths[bi];
+    const bh = heights[bi];
+    const y0 = Math.round((height - bh) / 2);
+    const alphaMul = b.stale ? 0.45 : 1;
+    if (prefs.darkBarBackground) {
+      fillRoundRect(
+        buf,
+        total,
+        height,
+        x,
+        y0,
+        bw,
+        bh,
+        6 * scale,
+        b.allowanceEmpty ? EXHAUSTED : PANEL,
+        Math.round(242 * alphaMul),
+      );
+    }
+
+    const icon = providerIconRgba(b.id, iconSize, prefs.themedProviderLogos);
+    blitIcon(
+      buf,
+      total,
+      height,
+      icon,
+      iconSize,
+      x + pad,
+      y0 + Math.round((bh - iconSize) / 2),
+      alphaMul,
     );
 
-    const valueFont = b.stacked ? 11 : 12;
-    const labelFont = b.stacked ? 10 : 11;
-    let cursor = x + 7 + iconSize + 7;
-    const labels = Math.max(...b.metrics.map((m) => textWidth(m.label, labelFont)), 0);
-    const values = Math.max(...b.metrics.map((m) => textWidth(m.value, valueFont)), 0);
+    let cursor = x + pad + iconSize + pad;
+    const labels = Math.max(...b.metrics.map((m) => textWidth(m.label, labelScale)), 0);
+    const values = Math.max(...b.metrics.map((m) => textWidth(m.value, valueScale)), 0);
+    const minPct = Math.min(
+      ...b.metrics.filter((m) => m.percent !== undefined).map((m) => m.percent as number),
+      999,
+    );
 
     b.metrics.forEach((m, mi) => {
-      if (b.stacked) {
-        const rowY = y0 + (b.metrics.length === 1 ? 15 : mi * 11 + 10);
-        parts.push(
-          `<text x="${cursor}" y="${rowY}" font-family="-apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" font-size="${labelFont}" font-weight="600" fill="${LABEL}">${escapeXml(m.label)}</text>`,
-        );
-        const vx = cursor + labels + 5 + values - textWidth(m.value, valueFont);
-        parts.push(
-          `<text x="${vx}" y="${rowY}" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="${valueFont}" font-weight="600" fill="${m.color}">${escapeXml(m.value)}</text>`,
+      const color: [number, number, number] = [
+        Math.round(m.color[0] * alphaMul + LABEL[0] * (1 - alphaMul)),
+        Math.round(m.color[1] * alphaMul + LABEL[1] * (1 - alphaMul)),
+        Math.round(m.color[2] * alphaMul + LABEL[2] * (1 - alphaMul)),
+      ];
+
+      if (isStacked(b.design)) {
+        const rowY =
+          y0 +
+          (b.metrics.length === 1 ? Math.round(bh / 2 - 7) : mi * 11 * scale + 2 * scale);
+        drawText(buf, total, height, m.label, cursor, rowY, LABEL, labelScale);
+        let valueX = cursor + labels + 5 * scale;
+        if ((b.design === "lanes" || b.design === "segments") && m.percent !== undefined) {
+          const mw = 54 * scale;
+          fillRoundRect(buf, total, height, valueX, rowY + 4 * scale, mw, 4 * scale, 2 * scale, TRACK, 255);
+          const frac = Math.max(0, Math.min(1, (m.percent ?? 0) / 100));
+          if (frac > 0) {
+            fillRoundRect(
+              buf,
+              total,
+              height,
+              valueX,
+              rowY + 4 * scale,
+              Math.round(mw * frac),
+              4 * scale,
+              2 * scale,
+              m.color,
+              255,
+            );
+          }
+          valueX += 60 * scale;
+        }
+        drawText(
+          buf,
+          total,
+          height,
+          m.value,
+          valueX + values - textWidth(m.value, valueScale),
+          rowY,
+          color,
+          valueScale,
         );
         return;
       }
-      if (mi > 0) {
-        parts.push(
-          `<rect x="${cursor - 7}" y="${y0 + 5}" width="1" height="12" fill="${TRACK}"/>`,
-        );
+
+      if (b.design === "divider" && mi > 0) {
+        fillRoundRect(buf, total, height, cursor - 7 * scale, y0 + 5 * scale, scale, 12 * scale, 0, TRACK, 255);
       }
-      const rowY = y0 + 15;
-      parts.push(
-        `<text x="${cursor}" y="${rowY}" font-family="-apple-system, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif" font-size="${labelFont}" font-weight="600" fill="${LABEL}">${escapeXml(m.label)}</text>`,
-      );
-      const vx = cursor + textWidth(m.label, labelFont) + 4;
-      parts.push(
-        `<text x="${vx}" y="${rowY}" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="${valueFont}" font-weight="600" fill="${m.color}">${escapeXml(m.value)}</text>`,
-      );
-      if (m.percent !== undefined) {
-        const meterW = textWidth(m.label, labelFont) + 4 + textWidth(m.value, valueFont);
-        // thin under-bar for visual parity with baseline feel on divider
-        const frac = Math.max(0, Math.min(1, m.percent / 100));
-        parts.push(
-          `<rect x="${cursor}" y="${y0 + bh - 5}" width="${meterW}" height="2" rx="1" fill="${TRACK}"/>`,
+
+      if (b.design === "focus" && m.percent === minPct && minPct < 999) {
+        const rowW =
+          textWidth(m.label, labelScale) + 4 * scale + textWidth(m.value, valueScale);
+        fillRoundRect(
+          buf,
+          total,
+          height,
+          cursor - 3 * scale,
+          y0 + 2 * scale,
+          rowW + 6 * scale,
+          18 * scale,
+          3 * scale,
+          m.color,
+          46,
         );
+        fillRoundRect(
+          buf,
+          total,
+          height,
+          cursor - 3 * scale,
+          y0 + 5 * scale,
+          2 * scale,
+          12 * scale,
+          scale,
+          m.color,
+          255,
+        );
+        cursor += 3 * scale;
+      }
+
+      if (b.design === "rings" && m.percent !== undefined) {
+        // simple ring track
+        const cx = cursor + 8 * scale;
+        const cy = y0 + 11 * scale;
+        const r = 7 * scale;
+        for (let a = 0; a < 360; a += 3) {
+          const rad = (a * Math.PI) / 180;
+          put(
+            buf,
+            total,
+            height,
+            Math.round(cx + r * Math.cos(rad)),
+            Math.round(cy + r * Math.sin(rad)),
+            TRACK,
+            220,
+          );
+        }
+        const frac = Math.max(0, Math.min(1, m.percent / 100));
+        for (let a = -90; a < -90 + 360 * frac; a += 3) {
+          const rad = (a * Math.PI) / 180;
+          put(
+            buf,
+            total,
+            height,
+            Math.round(cx + r * Math.cos(rad)),
+            Math.round(cy + r * Math.sin(rad)),
+            m.color,
+            255,
+          );
+        }
+        cursor += 21 * scale;
+      }
+
+      const rowY = y0 + (b.design === "baseline" ? 3 * scale : 5 * scale);
+      drawText(buf, total, height, m.label, cursor, rowY, LABEL, labelScale);
+      const vx = cursor + textWidth(m.label, labelScale) + 4 * scale;
+      drawText(buf, total, height, m.value, vx, rowY, color, valueScale);
+      const rowW = textWidth(m.label, labelScale) + 4 * scale + textWidth(m.value, valueScale);
+      if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
+        const my = y0 + bh - 5 * scale;
+        fillRoundRect(buf, total, height, cursor, my, rowW, 2 * scale, scale, TRACK, 255);
+        const frac = Math.max(0, Math.min(1, m.percent / 100));
         if (frac > 0) {
-          parts.push(
-            `<rect x="${cursor}" y="${y0 + bh - 5}" width="${meterW * frac}" height="2" rx="1" fill="${m.color}"/>`,
+          fillRoundRect(
+            buf,
+            total,
+            height,
+            cursor,
+            my,
+            Math.round(rowW * frac),
+            2 * scale,
+            scale,
+            m.color,
+            255,
           );
         }
       }
-      cursor +=
-        textWidth(m.label, labelFont) + 4 + textWidth(m.value, valueFont) + 13;
+      cursor += rowW + 13 * scale + (b.design === "focus" ? 5 * scale : 0);
     });
-    parts.push(`</g>`);
+
     x += bw + gap;
   }
 
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${total * scale}" height="${height * scale}" viewBox="0 0 ${total} ${height}">
-${parts.join("\n")}
-</svg>`;
-
-  const img = nativeImage.createFromDataURL(
-    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
-  );
-  if (img.isEmpty()) return emptyMark();
-  // Logical size for the menu bar
-  const sized = img.resize({ width: Math.round(total), height: Math.round(height), quality: "best" });
-  return sized;
-}
-
-function emptyMark(): Electron.NativeImage {
-  const size = 18;
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${size * 2}" height="${size * 2}" viewBox="0 0 ${size} ${size}">
-  <circle cx="9" cy="9" r="7" fill="none" stroke="#58d2ec" stroke-width="1.6"/>
-  <polyline points="4,9 7,9 8.2,6.2 10.5,12.2 12,9 14.5,9" fill="none" stroke="#58d2ec" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
-  const img = nativeImage.createFromDataURL(
-    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
-  );
-  return img.isEmpty() ? nativeImage.createEmpty() : img.resize({ width: size, height: size });
+  const png = encodePng(total, height, buf);
+  return nativeImage.createFromBuffer(png, { scaleFactor: scale });
 }
