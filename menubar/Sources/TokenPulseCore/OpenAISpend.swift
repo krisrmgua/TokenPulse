@@ -372,7 +372,7 @@ enum OpenAISpendParse {
 }
 
 /// Throttled OpenAI Costs client. Failures retain a recent last-known snapshot,
-/// matching the silent-degradation contract used by Cursor and the SoFi proxy.
+/// matching the silent-degradation contract used by Cursor and the spend proxy.
 final class OpenAISpendClient {
     private static let endpoint = "https://api.openai.com/v1/organization/costs"
     private static let staleAfter: TimeInterval = 30 * 60

@@ -132,12 +132,53 @@ Complete `/login` with the Pro or Max account, then `/usage`. TokenPulse drives 
 
 ### Optional spend proxy
 
-If you have an HTTPS endpoint that returns your own model spend, TokenPulse can replace the local Today / Month totals with that response. There is no built-in host. Set both of these outside the repo:
+Claude **work** mode starts from the transcripts on this Mac. Those miss calls made on another computer, and they miss calls that never landed in `~/.claude/projects`. A spend proxy is an HTTPS service you already have that returns your own billed model spend. TokenPulse can use that instead of the local count. There is no built-in host, and there is no switch in the panel. Other sources (ChatGPT, Cursor, Grok Bot, OpenAI, Claude personal) do not use it.
 
-- `TOKENPULSE_PROXY_SPEND_URL`, or one `https://` URL in `~/Library/Application Support/TokenPulse/proxy-spend-url`
-- `TOKENPULSE_PROXY_KEYS_FILE`, or a file path in `~/Library/Application Support/TokenPulse/proxy-keys-path`
+When both a URL and an unexpired key are present, TokenPulse replaces Claude work **Today**, **Month**, the per-model dollars, and the Opus share taken from those models. Sessions, cache-hit rate, dollars per session, the efficiency score, streaks, and history stay on the local transcripts. The proxy has no per-session detail, so those cannot move.
 
-The key file is JSON: `{ "staging": { "api_key": "…", "expires": "RFC3339" } }`. If you set neither path, TokenPulse looks at `~/.config/tokenpulse/proxy-keys.json`. No URL, or an expired key, means the proxy stays off.
+Each refresh is a `GET` of the URL you configured. TokenPulse adds `start_date` (the first day of the local month) and `end_date` (today) and sends the key as `Authorization: Bearer`. The call waits at most 10 seconds and runs at most every 5 minutes. A successful response is kept for 30 minutes if a later call fails. Any other failure leaves the transcript numbers in place.
+
+The response is your own spend. TokenPulse reads:
+
+| Field | Use |
+|---|---|
+| `end_user_id` | Identity string. `--proxy-check` masks it. |
+| `start_date`, `end_date` | Window the service reported. |
+| `total_spend` | Month dollars. |
+| `daily_spend` | Today dollars. Optional. |
+| `total_requests` | Request count. |
+| `by_model[]` | `model`, `spend`, and `api_requests` for each model. |
+
+Set the URL and the key path outside the repo. Both are required. An `http://` URL is ignored.
+
+```bash
+# One https URL, no extra text.
+printf '%s\n' 'https://example.internal/spend/end_user' > \
+  "$HOME/Library/Application Support/TokenPulse/proxy-spend-url"
+
+# One path to the key cache. ~ is expanded.
+printf '%s\n' "$HOME/.config/tokenpulse/proxy-keys.json" > \
+  "$HOME/Library/Application Support/TokenPulse/proxy-keys-path"
+```
+
+The same values can be environment variables instead of those files: `TOKENPULSE_PROXY_SPEND_URL` and `TOKENPULSE_PROXY_KEYS_FILE`. The environment wins when both are set. If you set neither key path, TokenPulse looks at `~/.config/tokenpulse/proxy-keys.json`.
+
+The key file is a cache some other tool writes. TokenPulse never logs in and never refreshes it. The shape is:
+
+```json
+{
+  "staging": {
+    "api_key": "the key",
+    "expires": "2026-08-16T17:49:51Z"
+  }
+}
+```
+
+`expires` is RFC3339. Fractional seconds are fine. A missing file, a missing `staging` key, or an expired key turns the proxy off.
+
+Quit TokenPulse and start it again after you add the files. The login agent does not see variables you only exported in a terminal. Put those in the agent's environment if you use the variables instead of the files.
+
+Check the round trip without leaving the key in the output:
 
 ```bash
 ~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --proxy-check

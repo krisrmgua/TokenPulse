@@ -24,7 +24,7 @@ struct Config {
     /// How often to rescan transcripts.
     var pollInterval: TimeInterval = 10
 
-    /// Shared poll + client throttle for remote spend sources (SoFi LLM proxy,
+    /// Shared poll + client throttle for remote spend sources (optional spend proxy,
     /// Cursor Dashboard, and OpenAI Costs). Kept in lockstep so all endpoints get the same
     /// courtesy interval — overridable via Jamf without a rebuild.
     var remotePollInterval: TimeInterval = 5 * 60

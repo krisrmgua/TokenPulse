@@ -38,7 +38,7 @@ public enum TokenPulseCLI {
           -h, --help                 this text
           --print                    JSON rollup (local transcripts only)
           --selftest                 offline checks (no XCTest needed)
-          --proxy-check              live SoFi LLM-proxy spend
+          --proxy-check              live configured proxy spend
           --cursor-check             live Cursor Dashboard spend
           --grok-bot-check           Grok Bot weekly usage via Cursor Sand API
           --chatgpt-check            ChatGPT weekly limit via Codex app server
