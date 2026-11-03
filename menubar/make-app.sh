@@ -19,30 +19,10 @@ cp Artwork/TokenPulseMark.png "$APP/Contents/Resources/TokenPulseMark.png"
 # Ship pricing.json inside the bundle so cost works without a repo checkout.
 cp ../pricing.json "$APP/Contents/Resources/pricing.json" 2>/dev/null || true
 
-# Reuse the locally installed official ChatGPT icon for the personal weekly
-# allowance block. The app has an SF Symbol fallback when ChatGPT Desktop is
-# absent and only the standalone Codex CLI is installed.
-for CHATGPT_ICON in \
-  "/Applications/AI:Coding/ChatGPT.app/Contents/Resources/icon-chatgpt.png" \
-  "/Applications/ChatGPT.app/Contents/Resources/icon-chatgpt.png" \
-  "$HOME/Applications/ChatGPT.app/Contents/Resources/icon-chatgpt.png"; do
-  if [ -f "$CHATGPT_ICON" ]; then
-    cp "$CHATGPT_ICON" "$APP/Contents/Resources/icon-chatgpt.png"
-    break
-  fi
-done
-
-# Grok Bot ships an .icns; retain enough resolution for themed Retina artwork.
-# Runtime still falls back to the live app icon when this copy is missing.
-for GROK_ICNS in \
-  "/Applications/Grok Bot.app/Contents/Resources/icon.icns" \
-  "$HOME/Applications/Grok Bot.app/Contents/Resources/icon.icns"; do
-  if [ -f "$GROK_ICNS" ]; then
-    sips -s format png -z 128 128 "$GROK_ICNS" \
-      --out "$APP/Contents/Resources/icon-grokbot.png" >/dev/null 2>&1 || true
-    break
-  fi
-done
+# Provider marks ship in the repo, so a Mac without ChatGPT or Grok Bot
+# still gets the real logos instead of an SF Symbol.
+cp Artwork/icon-chatgpt.png "$APP/Contents/Resources/icon-chatgpt.png"
+cp Artwork/icon-grokbot.png "$APP/Contents/Resources/icon-grokbot.png"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

@@ -94,7 +94,7 @@ Work mode shows today's and this month's Dashboard spend for your user id, not a
 
 Grok Bot shows the weekly Sand allowance from the same Cursor account, as percent left.
 
-The menu-bar and panel Grok mark uses the real **Grok Bot** app icon when that app is installed at `/Applications/Grok Bot.app` or `~/Applications/Grok Bot.app`. `./install.sh` / `make-app.sh` copy it into the TokenPulse bundle as `icon-grokbot.png`. Without Grok Bot on the Mac, TokenPulse falls back to an SF Symbol bolt. Install Grok Bot and re-run `./install.sh` on that machine to get the logo.
+The ChatGPT and Grok Bot marks ship inside the app (`menubar/Artwork/icon-chatgpt.png` and `icon-grokbot.png`). A Mac does not need those apps installed for the logos to show. Cursor, Claude, and the OpenAI API row use the built-in symbols.
 
 ```bash
 ~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --cursor-check
