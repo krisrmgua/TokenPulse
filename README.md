@@ -236,6 +236,10 @@ cd menubar
 
 Both builds install to `~/Applications/TokenPulse.app` with the same bundle id and share the same data folder, so whichever you installed last is the one that runs.
 
+## Version
+
+The shipping version is `package.json` → `version` (currently **0.3.0**). The panel shows it as `v0.3.0` in Options and in the footer. Bump that field before each release you push and package; Electron Builder embeds it so `app.getVersion()` matches.
+
 ## License
 
 [MIT](LICENSE). Copyright 2026 Kristopher Simmons.
