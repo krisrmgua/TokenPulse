@@ -253,12 +253,12 @@ struct MissionControlView: View {
                         let parts = text.components(separatedBy: ": ")
                         let rawLabel = parts.first ?? text
                         let label = rawLabel.hasPrefix("Projected") ? "Proj. eom" : rawLabel
-                        let value = model.combinedAmounts.indices.contains(index)
-                            ? Fmt.exactMoney(model.combinedAmounts[index])
-                            : parts.dropFirst().joined(separator: ": ")
+                        let amount = model.combinedAmounts.indices.contains(index) ? model.combinedAmounts[index] : nil
+                        let value = amount.map(Fmt.exactMoney) ?? parts.dropFirst().joined(separator: ": ")
                         VStack(alignment: .trailing, spacing: 1) {
                             Text(label).font(.system(size: 9, weight: .medium)).foregroundColor(MissionStyle.secondary)
                             Text(value).font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                                .foregroundColor(amount.map { combinedSpendColor($0, index: index) } ?? MissionStyle.ink)
                         }
                         .padding(.horizontal, 9)
                         .padding(.vertical, 5)
@@ -274,6 +274,39 @@ struct MissionControlView: View {
     }
     private var spendChipFill: Color {
         Color(red: 0.06, green: 0.16, blue: 0.24)
+    }
+    /// Today uses the day-scale of the summed work caps; month and projected use the month caps.
+    private func combinedSpendColor(_ usd: Double, index: Int) -> Color {
+        guard Prefs.spendColorsEnabled else { return MissionStyle.ink }
+        let policy = Config().spendRedUSD
+        var cap = 0.0
+        var orange = 75.0
+        var yellow = 50.0
+        var good: GoodZoneStyle = .green
+        var found = false
+        func take(_ colors: SpendUpColorConfig, policyUSD: Double) {
+            if !found {
+                orange = colors.orangePercent
+                yellow = colors.yellowPercent
+                good = colors.goodStyle
+                found = true
+            }
+            cap += colors.effectiveCap(policyUSD: policyUSD)
+        }
+        if Prefs.enabledCursor && !Prefs.cursorIsPersonal {
+            take(Prefs.cursorWorkColors(policyUSD: policy), policyUSD: policy)
+        }
+        if Prefs.enabledClaude && !Prefs.claudeIsPersonal {
+            take(Prefs.claudeColors(policyUSD: policy), policyUSD: policy)
+        }
+        if Prefs.enabledChatGPT && !Prefs.chatGPTIsPersonal {
+            take(Prefs.chatGPTWorkColors(), policyUSD: ChatGPTWorkUsageSnapshot.proPlanMonthlyUSD)
+        }
+        guard found, cap > 0 else { return MissionStyle.ink }
+        let effective = index == 0 ? SpendTint.dailyCap(cap) : cap
+        let tint = SpendTint.levelSpendUp(usd, cap: effective, orangePercent: orange, yellowPercent: yellow)
+        guard let ns = tint.menuColor(goodStyle: good) else { return MissionStyle.ink }
+        return Color(nsColor: ns)
     }
     @ViewBuilder private func brand(_ p: MissionProvider, size: CGFloat) -> some View {
         let resource = p.resource
