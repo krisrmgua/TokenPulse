@@ -1,0 +1,73 @@
+{
+  "name": "tokenpulse",
+  "productName": "TokenPulse",
+  "version": "0.2.0",
+  "description": "AI allowance and spend tracker for the macOS menu bar and the Windows system tray",
+  "main": "dist-electron/main.js",
+  "author": "Kristopher Simmons",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev:ui": "vite",
+    "build:ui": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json",
+    "build": "npm run build:ui && npm run build:electron",
+    "start": "npm run build && electron .",
+    "dev": "npm run build:electron && concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && TOKENPULSE_DEV=1 electron .\"",
+    "pack:mac": "npm run build && electron-builder --mac",
+    "pack:win": "npm run build && electron-builder --win",
+    "pack": "npm run build && electron-builder --mac --win"
+  },
+  "build": {
+    "appId": "com.kris.tokenpulse",
+    "productName": "TokenPulse",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "pricing.json",
+        "to": "pricing.json"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "zip"
+      ],
+      "icon": "menubar/Artwork/TokenPulse.icns",
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "concurrently": "^9.1.2",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2",
+    "wait-on": "^8.0.3"
+  },
+  "allowScripts": {
+    "electron@35.7.5": true,
+    "esbuild@0.25.12": true
+  }
+}
