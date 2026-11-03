@@ -74,6 +74,21 @@ enum TokenPulseSelfChecks {
         check("personal best = 85", h.personalBest == 85)
         check("7-day trend flat (0)", h.trend7d(today: today) == 0)
 
+        let spendLedgerURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("tok-selfchecks-spend-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: spendLedgerURL) }
+        var spendLedger = SpendLedger(url: spendLedgerURL)
+        spendLedger.record(dayUSD: 12.5, monthUSD: 40, today: "2026-11-03")
+        spendLedger.record(dayUSD: 14.0, monthUSD: 54, today: "2026-11-03") // upsert
+        check("spend ledger upserts today", spendLedger.entry(on: "2026-11-03")?.dayUSD == 14.0)
+        let spendNow = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 3))!
+        let spendChart = spendLedger.monthChart(
+            now: spendNow, todayUSD: 14, monthUSD: 54, projectedMonthEndUSD: 540)
+        check("spend chart covers November", spendChart.count == 30)
+        check("spend chart today is MTD", spendChart.first(where: \.isToday)?.actualUSD == 54)
+        check("spend chart eom projection", abs((spendChart.last?.projectedUSD ?? 0) - 540) < 0.001)
+        check("spend chart future has no actual", spendChart.last?.actualUSD == nil)
+
         // Cursor parse
         check("doubleField accepts Int", abs(CursorSpendParse.doubleField(["totalCents": 250], "totalCents") - 250) < 0.001)
         check("doubleField accepts String", abs(CursorSpendParse.doubleField(["totalCents": "99.5"], "totalCents") - 99.5) < 0.001)

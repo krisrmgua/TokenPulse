@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var lastEfficiency: EfficiencyResult?
     private var lastRollup: Rollup?
     private var history = History()
+    private var spendLedger = SpendLedger()
 
     /// Last day (yyyy-ddd) we fired the Opus alert — rate-limits to ~1/day.
     private var lastOpusAlertKey: String?
@@ -581,6 +582,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let projected = projectedMonthEnd(monthUSD: month)
         mission.combinedAmounts = hasWorkSpend ? [today, month, projected] : []
         mission.combinedLines = hasWorkSpend ? ["Today: \(Fmt.money(today))", "Month: \(Fmt.money(month))", "Projected month-end: \(Fmt.money(projected))"] : []
+        if hasWorkSpend {
+            spendLedger.record(dayUSD: today, monthUSD: month)
+        }
+        mission.spendChart = hasWorkSpend
+            ? spendLedger.monthChart(todayUSD: today, monthUSD: month, projectedMonthEndUSD: projected)
+            : []
         mission.efficiencyEnabled = Prefs.enabledClaude && (lastRollup?.sessions ?? 0) > 0
         mission.efficiencyMessage = Prefs.enabledClaude ? "No local Claude Code sessions found this month. Use Claude Code, then refresh to see Efficiency and Scoreboard. Personal allowance percentages alone cannot produce an efficiency score." : "Enable Claude in provider options to analyze local Claude Code sessions."
         if let raw = lastRollup { mission.score = ScoreboardModel.build(eff: eff, rollup: raw, history: history) }

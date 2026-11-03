@@ -1,4 +1,5 @@
 import AppKit
+import Charts
 import SwiftUI
 
 /// Immutable presentation tree over the existing menu actions. Refreshes replace the tree,
@@ -80,6 +81,7 @@ final class MissionModel: ObservableObject {
     @Published var combinedAmounts: [Double] = []
     @Published var combinedLines: [String] = []
     @Published var showsCombinedSpend = false
+    @Published var spendChart: [SpendChartPoint] = []
     @Published var balance: Double?
     @Published var balanceNeedsAttention = false
     var refresh: () -> Void = {}
@@ -88,8 +90,8 @@ final class MissionModel: ObservableObject {
 
     var options: MissionRow? { rows.first { $0.title == "Options" } }
     func show(_ route: String) {
-        // Combined spend lives in the sidebar now; keep old deep links on overview.
-        self.route = route == "combined" ? "overview" : route
+        // Combined spend chips open the spend chart; keep old "combined" deep links there too.
+        self.route = route == "combined" ? "spend" : route
         path = []
     }
     var baseRows: [MissionRow] {
@@ -154,7 +156,10 @@ struct MissionControlView: View {
                 Text("TokenPulse").font(.system(size: 16, weight: .semibold))
                 Spacer()
                 if model.refreshing { ProgressView().controlSize(.small) }
-                if model.route != "overview" { Button("Back") { model.back() }.buttonStyle(MissionButton()) }
+                if model.route != "overview" {
+                    Button(model.route == "spend" ? "Overview" : "Back") { model.back() }
+                        .buttonStyle(MissionButton())
+                }
                 Button {
                     model.refresh()
                 } label: {
@@ -192,6 +197,7 @@ struct MissionControlView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         if model.route == "overview" { overview }
+                        else if model.route == "spend" { spendBreakdown }
                         else if model.route == "efficiency" || model.route == "scoreboard" { efficiency }
                         else if model.route == "alerts" { alerts }
                         else { detail }
@@ -255,25 +261,135 @@ struct MissionControlView: View {
                         let label = rawLabel.hasPrefix("Projected") ? "Proj. eom" : rawLabel
                         let amount = model.combinedAmounts.indices.contains(index) ? model.combinedAmounts[index] : nil
                         let value = amount.map(Fmt.exactMoney) ?? parts.dropFirst().joined(separator: ": ")
-                        VStack(alignment: .trailing, spacing: 1) {
-                            Text(label).font(.system(size: 9, weight: .medium)).foregroundColor(MissionStyle.secondary)
-                            Text(value).font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                                .foregroundColor(amount.map { combinedSpendColor($0, index: index) } ?? MissionStyle.ink)
+                        Button { model.show("spend") } label: {
+                            VStack(alignment: .trailing, spacing: 1) {
+                                Text(label).font(.system(size: 9, weight: .medium)).foregroundColor(MissionStyle.secondary)
+                                Text(value).font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                                    .foregroundColor(amount.map { combinedSpendColor($0, index: index) } ?? MissionStyle.ink)
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(spendChipFill)
+                            .overlay(RoundedRectangle(cornerRadius: 7).stroke(
+                                model.route == "spend" ? MissionStyle.cyan.opacity(0.55) : MissionStyle.cyan.opacity(0.28)))
+                            .cornerRadius(7)
                         }
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(spendChipFill)
-                        .overlay(RoundedRectangle(cornerRadius: 7).stroke(MissionStyle.cyan.opacity(0.28)))
-                        .cornerRadius(7)
+                        .buttonStyle(.plain)
+                        .help("Daily spend chart")
                     }
                 }
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Your spend")
+        .accessibilityHint("Opens the daily spend chart")
     }
     private var spendChipFill: Color {
         Color(red: 0.06, green: 0.16, blue: 0.24)
+    }
+    private var spendBreakdown: some View {
+        let points = model.spendChart
+        let today = model.combinedAmounts.indices.contains(0) ? model.combinedAmounts[0] : 0
+        let month = model.combinedAmounts.indices.contains(1) ? model.combinedAmounts[1] : 0
+        let projected = model.combinedAmounts.indices.contains(2) ? model.combinedAmounts[2] : 0
+        let recorded = points.filter { $0.actualUSD != nil }.count
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("Month-to-date spend").font(.system(size: 18, weight: .semibold))
+            Text("Solid line climbs with recorded month-to-date totals. The dotted line continues to projected month-end.")
+                .font(.system(size: 12)).foregroundColor(MissionStyle.secondary)
+            HStack(spacing: 10) {
+                metricCard("Today", Fmt.exactMoney(today), color: combinedSpendColor(today, index: 0))
+                metricCard("Month", Fmt.exactMoney(month), color: combinedSpendColor(month, index: 1))
+                metricCard("Proj. eom", Fmt.exactMoney(projected), color: combinedSpendColor(projected, index: 2))
+            }
+            if points.isEmpty {
+                note("No spend to chart yet. Enable a work source and refresh.")
+            } else {
+                Chart {
+                    ForEach(points.filter { $0.actualUSD != nil }) { point in
+                        if let actual = point.actualUSD {
+                            LineMark(
+                                x: .value("Day", point.day),
+                                y: .value("Spend", actual),
+                                series: .value("Series", "Actual")
+                            )
+                            .foregroundStyle(MissionStyle.green)
+                            .lineStyle(StrokeStyle(lineWidth: 2.5))
+                            .interpolationMethod(.catmullRom)
+                            PointMark(
+                                x: .value("Day", point.day),
+                                y: .value("Spend", actual)
+                            )
+                            .foregroundStyle(point.isToday ? MissionStyle.cyan : MissionStyle.green)
+                            .symbolSize(point.isToday ? 64 : 36)
+                        }
+                    }
+                    ForEach(points.filter { $0.projectedUSD != nil }) { point in
+                        if let projectedDay = point.projectedUSD {
+                            LineMark(
+                                x: .value("Day", point.day),
+                                y: .value("Projected", projectedDay),
+                                series: .value("Series", "Projected")
+                            )
+                            .foregroundStyle(MissionStyle.amber)
+                            .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                            .interpolationMethod(.linear)
+                        }
+                    }
+                    if let eom = points.last, let projectedEom = eom.projectedUSD {
+                        PointMark(
+                            x: .value("Day", eom.day),
+                            y: .value("Projected", projectedEom)
+                        )
+                        .foregroundStyle(MissionStyle.amber)
+                        .symbolSize(64)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 8)) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(MissionStyle.line)
+                        AxisValueLabel {
+                            if let day = value.as(Int.self) {
+                                Text("\(day)").font(.system(size: 9)).foregroundColor(MissionStyle.secondary)
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(MissionStyle.line)
+                        AxisValueLabel {
+                            if let amount = value.as(Double.self) {
+                                Text(Fmt.money(amount)).font(.system(size: 9)).foregroundColor(MissionStyle.secondary)
+                            }
+                        }
+                    }
+                }
+                .frame(height: 220)
+                .padding(14)
+                .background(MissionStyle.panel)
+                .cornerRadius(10)
+                HStack(spacing: 14) {
+                    legendSwatch(MissionStyle.green, "Month-to-date")
+                    legendSwatch(MissionStyle.cyan, "Today")
+                    legendSwatch(MissionStyle.amber, "Projected to eom")
+                    Spacer(minLength: 0)
+                }
+                .font(.system(size: 11))
+                .foregroundColor(MissionStyle.secondary)
+                if recorded <= 1 {
+                    note("TokenPulse stores each day’s month-to-date locally as you refresh. Earlier days in this month fill in going forward.")
+                }
+            }
+        }
+    }
+    private func legendSwatch(_ color: Color, _ label: String) -> some View {
+        HStack(spacing: 5) {
+            RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 12, height: 4)
+            Text(label)
+        }
     }
     /// Today uses the day-scale of the summed work caps; month and projected use the month caps.
     private func combinedSpendColor(_ usd: Double, index: Int) -> Color {

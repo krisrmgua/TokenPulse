@@ -40,6 +40,8 @@ The bundle id is `com.kris.tokenpulse`. Preferences, the menu-bar position, and 
 
 The menu-bar item opens on the overview. **Options → Reopen where I left off** is off by default, so the next open returns to the overview. Turn it on to stay on the screen you last used.
 
+When work spend is shown, the **Today / Month / Proj. eom** chips open a month-to-date spend chart. TokenPulse records each day’s combined work spend locally (`spend-ledger.json`) as you refresh. A solid line climbs with recorded MTD totals; a dotted line continues from today up to projected month-end, ending on a marker at that projected day. Earlier days in the month only appear after TokenPulse has seen them.
+
 Each provider has **Enable** and **Show in Menu**. Enable turns the data source on. Show in Menu puts its block on the menu bar. ChatGPT and OpenAI start off. Cursor and Claude start on.
 
 **Options → Menu bar style** picks the capsule layout. The default is **1 · Divider capsule**. **Themed provider logos** is off. **Dark menu-bar background** draws a navy capsule behind each block. When any allowance meter on that block hits 0%, including a 5-hour window, that capsule turns a dark red.
@@ -91,6 +93,8 @@ When Cursor encrypted that token, reading it needs the **Cursor Safe Storage** p
 Work mode shows today's and this month's Dashboard spend for your user id, not a team-wide total. Personal mode shows the included Pro allowance as percent remaining. The default personal allowance is $20. Change it under **Options → Cursor**.
 
 Grok Bot shows the weekly Sand allowance from the same Cursor account, as percent left.
+
+The menu-bar and panel Grok mark uses the real **Grok Bot** app icon when that app is installed at `/Applications/Grok Bot.app` or `~/Applications/Grok Bot.app`. `./install.sh` / `make-app.sh` copy it into the TokenPulse bundle as `icon-grokbot.png`. Without Grok Bot on the Mac, TokenPulse falls back to an SF Symbol bolt. Install Grok Bot and re-run `./install.sh` on that machine to get the logo.
 
 ```bash
 ~/Applications/TokenPulse.app/Contents/MacOS/TokenPulse --cursor-check
