@@ -665,7 +665,7 @@ function renderSidebar(st: AppState): void {
       const r = `source:${s.id}` as Route;
       const selected = route === r;
       return `<button class="side-item${selected ? " active" : ""}" data-act="go" data-route="${r}">
-        ${providerMark(s.id, 22)}
+        ${providerMark(s.id, 24)}
         <span>${escapeHtml(s.name)}</span>
         <span class="dot ${s.status}"></span>
       </button>`;
