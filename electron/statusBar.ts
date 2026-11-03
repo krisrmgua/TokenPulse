@@ -2,7 +2,8 @@ import { nativeImage } from "electron";
 import { isStacked, type BarDesign } from "./barDesign";
 import { shortMoney } from "./format";
 import { encodePng } from "./iconRaster";
-import { ART_CYAN, ART_INK, providerIconRgba } from "./providerArt";
+import { providerIconRgba } from "./providerArt";
+import { tintBalanceUSD, tintRemainingPct, tintSpendUSD } from "./spendTint";
 import {
   PROVIDER_ORDER,
   type Prefs,
@@ -14,12 +15,6 @@ const PANEL: [number, number, number] = [19, 41, 59];
 const EXHAUSTED: [number, number, number] = [77, 19, 20];
 const TRACK: [number, number, number] = [59, 82, 99];
 const LABEL: [number, number, number] = [153, 173, 199];
-const GREEN: [number, number, number] = [117, 224, 179];
-const AMBER: [number, number, number] = [240, 204, 133];
-const RED: [number, number, number] = [255, 143, 156];
-const PASTEL_GREEN: [number, number, number] = [199, 245, 199];
-const PASTEL_AMBER: [number, number, number] = [255, 227, 184];
-const PASTEL_RED: [number, number, number] = [255, 194, 191];
 
 export interface StatusMetric {
   label: string;
@@ -61,6 +56,12 @@ function metricsFor(
   sp: Prefs["sources"][SourceId],
   prefs: Prefs,
 ): StatusMetric[] {
+  const colorOpts = {
+    spendColorsEnabled: prefs.spendColorsEnabled,
+    pastelBarColors: prefs.pastelBarColors,
+    themedProviderLogos: prefs.themedProviderLogos,
+  };
+
   if (s.meters.length > 0) {
     return s.meters.map((m) => {
       const pct = Math.max(0, Math.min(100, Math.round(m.percentLeft)));
@@ -78,7 +79,7 @@ function metricsFor(
         label,
         value: `${pct}%`,
         percent: pct,
-        color: tintRemaining(pct, prefs),
+        color: tintRemainingPct(pct, colorOpts),
       };
     });
   }
@@ -87,28 +88,31 @@ function metricsFor(
   if (s.id === "openai") {
     const balLine = s.lines.find((l) => /balance/i.test(l.label));
     if (balLine) {
-      metrics.push({ label: "B", value: balLine.value.replace(/\s/g, ""), color: ink(prefs) });
+      const n = Number(balLine.value.replace(/[^0-9.]/g, ""));
+      metrics.push({
+        label: "B",
+        value: balLine.value.replace(/\s/g, ""),
+        color: Number.isFinite(n)
+          ? tintBalanceUSD(n, colorOpts)
+          : tintSpendUSD(0, s.id, colorOpts, "month"),
+      });
     }
   }
   if (s.todayUSD !== undefined && sp.showDailyInBar) {
-    metrics.push({ label: "D", value: shortMoney(s.todayUSD), color: ink(prefs) });
+    metrics.push({
+      label: "D",
+      value: shortMoney(s.todayUSD),
+      color: tintSpendUSD(s.todayUSD, s.id, colorOpts, "day"),
+    });
   }
   if (s.monthUSD !== undefined && sp.showMonthlyInBar) {
-    metrics.push({ label: "M", value: shortMoney(s.monthUSD), color: ink(prefs) });
+    metrics.push({
+      label: "M",
+      value: shortMoney(s.monthUSD),
+      color: tintSpendUSD(s.monthUSD, s.id, colorOpts, "month"),
+    });
   }
   return metrics;
-}
-
-function ink(prefs: Prefs): [number, number, number] {
-  return prefs.themedProviderLogos ? ART_CYAN : ART_INK;
-}
-
-function tintRemaining(pct: number, prefs: Prefs): [number, number, number] {
-  if (!prefs.spendColorsEnabled) return ink(prefs);
-  const pastel = prefs.pastelBarColors;
-  if (pct <= 10) return pastel ? PASTEL_RED : RED;
-  if (pct <= 50) return pastel ? PASTEL_AMBER : AMBER;
-  return pastel ? PASTEL_GREEN : GREEN;
 }
 
 /** 5×7 glyphs for menu-bar metrics. */
