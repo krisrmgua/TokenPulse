@@ -1038,6 +1038,10 @@ input[type="number"] {
   padding-top: 10px;
 }
 
+.provider-opts {
+  margin: 10px 0 14px;
+}
+
 .stub {
   gap: 10px;
 }
