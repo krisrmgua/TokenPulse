@@ -14,11 +14,11 @@ const LABEL = "rgb(153, 173, 199)";
 
 /**
  * Tray renderer for macOS + Windows (same canvas path on both).
- * Divider matches stacked capsule height / type scale so adjacent blocks align.
+ * Divider chrome matches stacked height; divider type is larger inside that capsule.
  */
 const VALUE_FONT =
-  '600 13px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
-const LABEL_FONT = '600 12px "SF Pro Text", -apple-system';
+  '600 16px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT = '600 15px "SF Pro Text", -apple-system';
 const VALUE_FONT_STACKED =
   '600 13px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
 const LABEL_FONT_STACKED = '600 12px "SF Pro Text", -apple-system';
@@ -326,8 +326,8 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Top-origin; same 13/12 type as stacked — half-point keeps $ with D/M.
-      const rowY = y0 + (b.design === "baseline" ? 4 : 7);
+      // Top-origin; 16/15 in 28pt chrome — half-point keeps $ with D/M.
+      const rowY = y0 + (b.design === "baseline" ? 4 : 5);
       const labelOffset = b.design === "baseline" ? -1 : 1;
       const valueOffset = b.design === "baseline" ? -2 : 0.5;
       ctx.textBaseline = "top";
