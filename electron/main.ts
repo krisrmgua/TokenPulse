@@ -122,14 +122,14 @@ function withIcons(st: AppState): AppState {
   };
 }
 
-function updateTray(): void {
+async function updateTray(): Promise<void> {
   if (!tray) return;
   const st = engine.state();
   const blocks = blocksFromSources(st.sources, st.prefs);
   const { title, tooltip } = engine.trayText();
   try {
     const image =
-      blocks.length > 0 ? createStatusBarImage(blocks, st.prefs) : createTrayIcon();
+      blocks.length > 0 ? await createStatusBarImage(blocks, st.prefs) : createTrayIcon();
     if (!image.isEmpty()) tray.setImage(image);
     else tray.setImage(createTrayIcon());
   } catch {
@@ -150,7 +150,7 @@ function updateTray(): void {
 }
 
 function broadcast(): void {
-  updateTray();
+  void updateTray();
   if (panel && !panel.isDestroyed()) panel.webContents.send("tp:changed");
 }
 
@@ -324,7 +324,7 @@ function boot(): void {
   wireIpc();
   panel = createPanel();
   schedule();
-  updateTray();
+  void updateTray();
   void engine.refresh(true);
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "tokenpulse",
   "productName": "TokenPulse",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "AI allowance and spend tracker for the macOS menu bar and the Windows system tray",
   "main": "dist-electron/main.js",
   "author": "Kristopher Simmons",
@@ -30,6 +30,9 @@
       "dist-electron/**/*",
       "package.json",
       "menubar/Artwork/icon-*.png"
+    ],
+    "asarUnpack": [
+      "**/node_modules/@napi-rs/canvas/**/*"
     ],
     "extraResources": [
       {
@@ -65,7 +68,9 @@
       "allowToChangeInstallationDirectory": true
     }
   },
-  "dependencies": {},
+  "dependencies": {
+    "@napi-rs/canvas": "^1.1.0"
+  },
   "devDependencies": {
     "@types/node": "^22.13.10",
     "concurrently": "^9.1.2",
