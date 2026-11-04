@@ -31,8 +31,8 @@ export const SOURCE_NAMES: Record<SourceId, string> = {
 
 /** Account modes each source supports. A single entry means no picker. */
 export const SOURCE_ACCOUNTS: Record<SourceId, AccountMode[]> = {
-  claude: ["work"],
-  cursor: ["work", "personal"],
+  claude: ["personal", "work"],
+  cursor: ["personal", "work"],
   chatgpt: ["personal", "work"],
   openai: ["work"],
   grokbot: ["personal"],
@@ -48,6 +48,8 @@ export interface SourcePrefs {
   showDailyInBar: boolean;
   /** Work spend: show M in the menu bar. */
   showMonthlyInBar: boolean;
+  /** OpenAI pay-as-you-go: show B in the menu bar. */
+  showBalanceInBar: boolean;
 }
 
 export interface OpenAIBalanceBaseline {
@@ -64,6 +66,8 @@ export interface Prefs {
   cursorPersonalAllowanceUSD: number;
   openAtLogin: boolean;
   openAIBalance?: OpenAIBalanceBaseline;
+  /** Swift baseline was copied, or the user set or cleared a balance. */
+  openAIBalanceMigrated?: boolean;
   /** Cyan-on-navy provider tiles (Swift themedProviderLogos). */
   themedProviderLogos: boolean;
   /** Draw navy capsules behind each provider block. */

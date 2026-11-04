@@ -7,6 +7,7 @@ import {
   REFRESH_CHOICES,
   SOURCE_ACCOUNTS,
   SOURCE_IDS,
+  type OpenAIBalanceBaseline,
   type Prefs,
   type SourceId,
   type SourcePrefs,
@@ -14,27 +15,29 @@ import {
 
 const BAR_IDS = new Set(BAR_DESIGNS.map((d) => d.id));
 
-function defaultSource(id: SourceId, enabled: boolean): SourcePrefs {
+function defaultSource(id: SourceId): SourcePrefs {
+  const accounts = SOURCE_ACCOUNTS[id];
   return {
-    enabled,
-    showInTray: enabled,
-    account: SOURCE_ACCOUNTS[id][0],
+    enabled: false,
+    showInTray: false,
+    account: accounts.includes("personal") ? "personal" : accounts[0],
     barDesign: "divider",
     showDailyInBar: true,
     showMonthlyInBar: true,
+    showBalanceInBar: true,
   };
 }
 
-/** Claude and Cursor start on; the others stay off until enabled (same as Swift). */
+/** Fresh install: every provider off, and personal when that source has a personal mode. */
 export function defaultPrefs(): Prefs {
   return {
     version: 1,
     sources: {
-      claude: defaultSource("claude", true),
-      cursor: defaultSource("cursor", true),
-      chatgpt: { ...defaultSource("chatgpt", false), account: "personal" },
-      openai: defaultSource("openai", false),
-      grokbot: defaultSource("grokbot", false),
+      claude: defaultSource("claude"),
+      cursor: defaultSource("cursor"),
+      chatgpt: defaultSource("chatgpt"),
+      openai: defaultSource("openai"),
+      grokbot: defaultSource("grokbot"),
     },
     refreshMinutes: 1,
     cursorPersonalAllowanceUSD: 20,
@@ -110,6 +113,8 @@ function normalizeSource(id: SourceId, s: Partial<SourcePrefs> | undefined, base
     showDailyInBar: typeof s?.showDailyInBar === "boolean" ? s.showDailyInBar : base.showDailyInBar,
     showMonthlyInBar:
       typeof s?.showMonthlyInBar === "boolean" ? s.showMonthlyInBar : base.showMonthlyInBar,
+    showBalanceInBar:
+      typeof s?.showBalanceInBar === "boolean" ? s.showBalanceInBar : base.showBalanceInBar,
   };
 }
 
@@ -147,13 +152,45 @@ function readSwiftDefaults(): Partial<Prefs> {
   }
 }
 
+/** Swift `OpenAIBalancePrefs` keys in a `defaults read` dump. */
+export function parseSwiftOpenAIBalance(raw: string): OpenAIBalanceBaseline | undefined {
+  const balance = raw.match(/openAIEstimatedBalanceBaselineUSD\s*=\s*"?(-?\d+(?:\.\d+)?)"?/);
+  const spent = raw.match(/openAIEstimatedBalanceDaySpendUSD\s*=\s*"?(-?\d+(?:\.\d+)?)"?/);
+  const day = raw.match(
+    /openAIEstimatedBalanceDayStart\s*=\s*"?(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4})"?/,
+  );
+  if (!balance || !spent || !day) return undefined;
+  const enteredUSD = Number(balance[1]);
+  const spendAlreadyReportedUSD = Number(spent[1]);
+  const stamp = day[1].replace(" ", "T").replace(/ ([+-]\d{2})(\d{2})$/, "$1:$2");
+  const dayStart = new Date(stamp);
+  if (!Number.isFinite(enteredUSD) || !Number.isFinite(spendAlreadyReportedUSD)) return undefined;
+  if (Number.isNaN(dayStart.getTime())) return undefined;
+  return { enteredUSD, dayStart: dayStart.toISOString(), spendAlreadyReportedUSD };
+}
+
+function readSwiftOpenAIBalance(): OpenAIBalanceBaseline | undefined {
+  if (process.platform !== "darwin") return undefined;
+  try {
+    const raw = execFileSync("defaults", ["read", "com.kris.tokenpulse"], {
+      encoding: "utf8",
+      timeout: 2000,
+    });
+    return parseSwiftOpenAIBalance(raw);
+  } catch {
+    return undefined;
+  }
+}
+
 export class PrefsStore {
   private data: Prefs;
   private readonly file: string;
+  private writeAfterLoad = false;
 
   constructor(file: string) {
     this.file = file;
     this.data = this.load();
+    if (this.writeAfterLoad) this.persist();
   }
 
   get(): Prefs {
@@ -174,6 +211,7 @@ export class PrefsStore {
     }
     if (typeof patch.showDailyInBar === "boolean") next.showDailyInBar = patch.showDailyInBar;
     if (typeof patch.showMonthlyInBar === "boolean") next.showMonthlyInBar = patch.showMonthlyInBar;
+    if (typeof patch.showBalanceInBar === "boolean") next.showBalanceInBar = patch.showBalanceInBar;
     if (patch.barDesign) {
       next.barDesign = parseBarDesign(patch.barDesign, spendOnlyFor(id, next.account));
     } else {
@@ -205,6 +243,7 @@ export class PrefsStore {
       this.data.openAIBalance = patch.openAIBalance
         ? { ...patch.openAIBalance }
         : undefined;
+      this.data.openAIBalanceMigrated = true;
     }
     if (typeof patch.themedProviderLogos === "boolean") {
       this.data.themedProviderLogos = patch.themedProviderLogos;
@@ -294,8 +333,10 @@ export class PrefsStore {
           spendOnlyFor("cursor", base.sources.cursor.account),
         );
       }
+      this.adoptSwiftBalance(base);
       this.data = base;
       this.persist();
+      this.writeAfterLoad = false;
       return this.get();
     }
 
@@ -394,7 +435,18 @@ export class PrefsStore {
     ) {
       base.openAIBalance = { ...b };
     }
+    if (raw.openAIBalanceMigrated === true) base.openAIBalanceMigrated = true;
+    this.adoptSwiftBalance(base);
     return base;
+  }
+
+  private adoptSwiftBalance(base: Prefs): void {
+    if (base.openAIBalance || base.openAIBalanceMigrated) return;
+    const migrated = readSwiftOpenAIBalance();
+    if (!migrated) return;
+    base.openAIBalance = migrated;
+    base.openAIBalanceMigrated = true;
+    this.writeAfterLoad = true;
   }
 
   private persist(): void {

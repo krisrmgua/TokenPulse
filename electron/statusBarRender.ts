@@ -29,12 +29,11 @@ function rgb(c: [number, number, number], alpha = 1): string {
   return `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${alpha})`;
 }
 
-function chromeHeight(design: BarDesign): number {
+function chromeHeight(design: BarDesign, metricCount = 2): number {
   // Same capsule height for stacked + divider so neighbors match in the menu bar.
-  if (isStacked(design) || design === "divider" || design === "rings" || design === "focus") {
-    return 28;
-  }
-  return 28; // baseline shares height; meter sits in the lower pad
+  // A third stacked figure (OpenAI B) needs another row.
+  if (isStacked(design) && metricCount > 2) return 4 + metricCount * 12;
+  return 28;
 }
 
 function iconSizeFor(_design: BarDesign): number {
@@ -180,7 +179,7 @@ export function renderStatusBarPng(
 
   const scaleFactor = 2;
   const gap = 5;
-  const height = Math.max(...blocks.map((b) => chromeHeight(b.design)));
+  const height = Math.max(...blocks.map((b) => chromeHeight(b.design, b.metrics.length)));
 
   const scratch = createCanvas(4, 4);
   const mctx = scratch.getContext("2d");
@@ -209,7 +208,7 @@ export function renderStatusBarPng(
   for (let bi = 0; bi < blocks.length; bi++) {
     const b = blocks[bi];
     const bw = widths[bi];
-    const bh = chromeHeight(b.design);
+    const bh = chromeHeight(b.design, b.metrics.length);
     const iconSize = iconSizeFor(b.design);
     const pad = padFor(b.design);
     const iconGap = iconGapFor(b.design);

@@ -767,6 +767,10 @@ input[type="number"] {
   line-height: 1.25;
 }
 
+.spend-balance + .spend-sub {
+  margin-top: 2px;
+}
+
 .reset-note {
   font-size: 10px;
   color: var(--muted);

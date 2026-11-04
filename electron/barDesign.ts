@@ -18,9 +18,9 @@ export const BAR_DESIGNS: {
   { id: "rings", number: 2, name: "Twin gauges", spendOk: false },
   { id: "baseline", number: 3, name: "Baseline meters", spendOk: false },
   { id: "stack", number: 4, name: "Compact stack", spendOk: true },
-  { id: "focus", number: 6, name: "Focus capsule", spendOk: false },
-  { id: "lanes", number: 7, name: "Stacked tracks", spendOk: false },
-  { id: "segments", number: 9, name: "Segmented lanes", spendOk: false },
+  { id: "focus", number: 5, name: "Focus capsule", spendOk: false },
+  { id: "lanes", number: 6, name: "Stacked tracks", spendOk: false },
+  { id: "segments", number: 7, name: "Segmented lanes", spendOk: false },
 ];
 
 export function barDesignTitle(id: BarDesign): string {

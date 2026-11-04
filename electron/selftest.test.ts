@@ -19,6 +19,16 @@ import { parseSandUsage } from "./sources/grokbot";
 import { parseRateLimits, parseWorkUsage, workEstimatedUSD, workTodayIsPending } from "./sources/chatgpt";
 import { parseCostPage, requestURL, totalUSD, lineItems, estimateBalance } from "./sources/openai";
 import { parseTranscriptLine, summarize } from "./sources/claude";
+import {
+  claudeResetDate,
+  isCompleteResetDescription,
+  isCompleteUsageFrame,
+  parseClaudeUsage,
+  personalWindowLabel,
+} from "./sources/claudeUsage";
+import { BAR_DESIGNS } from "./barDesign";
+import { blocksFromSources } from "./statusBar";
+import { defaultPrefs, parseSwiftOpenAIBalance } from "./prefs";
 import { classifyCredential, decodeCredential, SAFE_STORAGE_PREFIX } from "./sources/cursorAuth";
 import { isValidAdminKeyFormat, OpenAIKeyStore } from "./openaiAdmin";
 import { renderMark } from "./iconRaster";
@@ -169,6 +179,119 @@ test("openai costs parsing and pagination guard", () => {
     estimateBalance({ enteredUSD: 100, dayStart: start.toISOString(), spendAlreadyReportedUSD: 3 }, 10),
     93,
   );
+});
+
+test("fresh defaults are off and personal", () => {
+  const prefs = defaultPrefs();
+  for (const source of Object.values(prefs.sources)) {
+    assert.equal(source.enabled, false);
+    assert.equal(source.showInTray, false);
+  }
+  assert.equal(prefs.sources.claude.account, "personal");
+  assert.equal(prefs.sources.cursor.account, "personal");
+  assert.equal(prefs.sources.chatgpt.account, "personal");
+  assert.equal(prefs.sources.grokbot.account, "personal");
+  assert.equal(prefs.sources.openai.account, "work");
+  assert.equal(prefs.sources.openai.showBalanceInBar, true);
+});
+
+test("swift openai balance baseline copies into electron prefs", () => {
+  const raw = [
+    'openAIEstimatedBalanceBaselineUSD = "9.27";',
+    'openAIEstimatedBalanceDayStart = "2026-08-26 06:00:00 +0000";',
+    "openAIEstimatedBalanceDaySpendUSD = 0;",
+  ].join("\n");
+  const baseline = parseSwiftOpenAIBalance(raw);
+  assert.equal(baseline?.enteredUSD, 9.27);
+  assert.equal(baseline?.spendAlreadyReportedUSD, 0);
+  assert.equal(baseline?.dayStart, "2026-08-26T06:00:00.000Z");
+  assert.equal(parseSwiftOpenAIBalance("openAIEstimatedBalanceBaselineUSD = 1;"), undefined);
+});
+
+test("openai menu bar can show or hide balance, daily, and month", () => {
+  const prefs = defaultPrefs();
+  prefs.sources.openai.enabled = true;
+  prefs.sources.openai.showInTray = true;
+  const snap = {
+    id: "openai" as const,
+    name: "OpenAI API",
+    enabled: true,
+    showInTray: true,
+    account: "work" as const,
+    accounts: ["work" as const],
+    status: "ok" as const,
+    todayUSD: 0,
+    monthUSD: 0,
+    meters: [],
+    lines: [{ label: "Estimated prepaid balance", value: "$8.50" }],
+    credential: "",
+  };
+  assert.deepEqual(
+    blocksFromSources([snap], prefs)[0].metrics.map((m) => `${m.label} ${m.value}`),
+    ["B $8.50", "D $0.00", "M $0.00"],
+  );
+  prefs.sources.openai.showDailyInBar = false;
+  prefs.sources.openai.showBalanceInBar = false;
+  assert.deepEqual(
+    blocksFromSources([snap], prefs)[0].metrics.map((m) => m.label),
+    ["M"],
+  );
+  prefs.sources.openai.showBalanceInBar = true;
+  prefs.sources.openai.showMonthlyInBar = false;
+  const unset = blocksFromSources([{ ...snap, lines: [] }], prefs);
+  assert.deepEqual(
+    unset[0].metrics.map((m) => `${m.label} ${m.value}`),
+    ["B —"],
+  );
+});
+
+test("claude /usage parse keeps a finished weekly row", () => {
+  const raw = [
+    "Current session",
+    "91% used",
+    "Resets 3:30pm (America/Denver)",
+    "Current week (all models)",
+    "39% used",
+    "Resets Sep 16 at 11am (America/Denver)",
+  ].join("\n");
+  const snap = parseClaudeUsage(raw, 0, "claude");
+  assert.ok(snap);
+  assert.equal(snap.session?.percentLeft, 9);
+  assert.equal(snap.weekly?.percentLeft, 61);
+  assert.equal(isCompleteUsageFrame(snap, raw), true);
+  assert.equal(personalWindowLabel(snap.weekly!), "61%");
+  assert.equal(isCompleteResetDescription("Sep"), false);
+  assert.equal(isCompleteResetDescription("Sep 16 at 11am (America/Denver)"), true);
+  const partial = "Current session\n25% used\nResets 4:00pm (America/Denver)\nCurrent week";
+  const sessionOnly = parseClaudeUsage(partial);
+  assert.ok(sessionOnly?.session);
+  assert.equal(isCompleteUsageFrame(sessionOnly, partial), false);
+});
+
+test("menu bar styles number in order", () => {
+  assert.deepEqual(
+    BAR_DESIGNS.map((d) => d.number),
+    [1, 2, 3, 4, 5, 6, 7],
+  );
+});
+
+test("claude reset copy becomes an absolute instant", () => {
+  const fetchedAt = new Date("2026-11-01T20:00:00Z");
+  assert.equal(
+    claudeResetDate("3:30pm (America/Los_Angeles)", fetchedAt)?.toISOString(),
+    "2026-11-01T23:30:00.000Z",
+  );
+  assert.equal(
+    claudeResetDate("Nov 6, 9am (America/Denver)", fetchedAt)?.toISOString(),
+    "2026-11-06T16:00:00.000Z",
+  );
+  assert.equal(
+    claudeResetDate("Nov 7 at 10am (America/Denver)", fetchedAt)?.toISOString(),
+    "2026-11-07T17:00:00.000Z",
+  );
+  assert.equal(claudeResetDate("not reported", fetchedAt), undefined);
+  const pastClock = claudeResetDate("1:00am (America/Denver)", fetchedAt);
+  assert.equal(pastClock?.toISOString(), "2026-11-02T08:00:00.000Z");
 });
 
 test("claude transcript lines and rollup", () => {
