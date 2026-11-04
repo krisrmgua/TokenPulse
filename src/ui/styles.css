@@ -980,6 +980,17 @@ input[type="number"] {
   line-height: 1.4;
 }
 
+.alerts-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.alerts-stack .note-panel {
+  margin-top: 0;
+}
+
 .opt-actions {
   margin-top: 14px;
   display: flex;
@@ -1080,10 +1091,6 @@ input[type="number"] {
 .ach-mark {
   color: var(--muted);
   font-size: 14px;
-}
-
-.empty-alerts .stub-title {
-  color: var(--muted);
 }
 
 .btn.icon svg {
