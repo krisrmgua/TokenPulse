@@ -13,8 +13,8 @@ const TRACK = "rgb(59, 82, 99)";
 const LABEL = "rgb(153, 173, 199)";
 
 /**
- * Canvas fallback when Swift `--bar-render` is unavailable.
- * Mirrors StatusBarArtwork with `enlarged: true` (Prefs.increaseBarSize).
+ * Tray renderer for macOS + Windows (same canvas path on both).
+ * Metrics mirror StatusBarArtwork with `enlarged: true`.
  */
 const VALUE_FONT =
   '600 12px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
