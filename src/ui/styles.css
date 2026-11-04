@@ -873,6 +873,47 @@ input[type="number"] {
   color: var(--ink);
 }
 
+.order-section {
+  margin-top: 14px;
+  gap: 7px;
+}
+
+.example-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.example-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  cursor: grab;
+  flex: none;
+}
+
+.example-pill .pmark {
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.example-pill.dragging {
+  opacity: 0.35;
+  cursor: grabbing;
+}
+
 .settings-menu {
   appearance: none;
   border: 0;

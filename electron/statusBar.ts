@@ -4,12 +4,8 @@ import { barMoney } from "./format";
 import { tintBalanceUSD, tintRemainingPct, tintSpendUSD } from "./spendTint";
 import { renderStatusBarPng, warmStatusBarIcons } from "./statusBarRender";
 import type { StatusBlock, StatusMetric } from "./statusBarTypes";
-import {
-  PROVIDER_ORDER,
-  type Prefs,
-  type SourceId,
-  type SourceSnapshot,
-} from "./types";
+import type { Prefs, SourceId, SourceSnapshot } from "./types";
+import { menuBarOrderFromRaw } from "./prefs";
 
 export type { StatusBlock, StatusMetric } from "./statusBarTypes";
 export { renderStatusBarPng, setArtworkRoot, warmStatusBarIcons } from "./statusBarRender";
@@ -17,7 +13,7 @@ export { renderStatusBarPng, setArtworkRoot, warmStatusBarIcons } from "./status
 export function blocksFromSources(sources: SourceSnapshot[], prefs: Prefs): StatusBlock[] {
   const byId = new Map(sources.map((s) => [s.id, s]));
   const out: StatusBlock[] = [];
-  for (const id of PROVIDER_ORDER) {
+  for (const id of menuBarOrderFromRaw(prefs.menuBarOrder)) {
     const s = byId.get(id);
     if (!s || !s.enabled || !s.showInTray) continue;
     const sp = prefs.sources[id];
