@@ -5,10 +5,12 @@ import {
   Notification,
   Tray,
   ipcMain,
+  nativeImage,
   screen,
   shell,
 } from "electron";
-import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { Engine } from "./engine";
 import { SpendLedger } from "./ledger";
@@ -17,6 +19,7 @@ import { dataDir, ledgerPath, prefsPath, pricingCandidates } from "./paths";
 import { PrefsStore } from "./prefs";
 import { Pricing } from "./pricing";
 import { createTrayIcon } from "./tray";
+import { renderMark } from "./iconRaster";
 import { providerIconMap } from "./providerArt";
 import { blocksFromSources, createStatusBarImage } from "./statusBar";
 import { startOfDay } from "./format";
@@ -46,6 +49,22 @@ let keys: OpenAIKeyStore;
 let timer: NodeJS.Timeout | undefined;
 /** Keep alive — Electron GCs unreferenced Notification before the banner shows. */
 let activeNotification: Notification | null = null;
+
+/** App mark for banners — ad-hoc builds often omit the bundle icon otherwise. */
+function notificationIcon(): Electron.NativeImage {
+  const candidates = [
+    path.join(process.resourcesPath, "Artwork", "TokenPulseMark.png"),
+    path.join(process.resourcesPath, "icon.icns"),
+    path.join(app.getAppPath(), "menubar", "Artwork", "TokenPulseMark.png"),
+    path.join(app.getAppPath(), "menubar", "Artwork", "TokenPulse.icns"),
+  ];
+  for (const file of candidates) {
+    if (!fs.existsSync(file)) continue;
+    const img = nativeImage.createFromPath(file);
+    if (!img.isEmpty()) return img;
+  }
+  return nativeImage.createFromBuffer(renderMark({ size: 128, variant: "app" }));
+}
 
 function panelUrl(): string {
   if (isDev) return "http://127.0.0.1:5173";
@@ -328,50 +347,24 @@ function wireIpc(): void {
     const sound = prefs.get().notificationSounds;
     const body =
       "Allowance alerts use this icon and include the provider, window and reset time.";
+    // Write a temp PNG so macOS UNNotification gets a real file path (NativeImage
+    // alone is flaky on ad-hoc LSUIElement builds).
+    const icon = notificationIcon();
+    const iconPath = path.join(os.tmpdir(), "tokenpulse-notification-icon.png");
+    try {
+      fs.writeFileSync(iconPath, icon.toPNG());
+    } catch {
+      /* still try with NativeImage */
+    }
     activeNotification = new Notification({
       title: "TokenPulse",
       subtitle: "Notification preview",
       body,
       silent: !sound,
+      icon: fs.existsSync(iconPath) ? iconPath : icon,
     });
-
-    const shown = await new Promise<boolean>((resolve) => {
-      let settled = false;
-      const finish = (ok: boolean) => {
-        if (settled) return;
-        settled = true;
-        resolve(ok);
-      };
-      activeNotification!.once("show", () => finish(true));
-      activeNotification!.show();
-      setTimeout(() => finish(false), 900);
-    });
-
-    if (shown) return { ok: true, message: "Test notification sent." };
-
-    // Ad-hoc / unsigned builds often never emit "show". Fall back like a Script
-    // notification so the click still does something visible.
-    if (process.platform === "darwin") {
-      try {
-        execFileSync(
-          "osascript",
-          [
-            "-e",
-            `display notification ${JSON.stringify(body)} with title "TokenPulse" subtitle "Notification preview"`,
-          ],
-          { timeout: 5000 },
-        );
-        return { ok: true, message: "Test notification sent." };
-      } catch {
-        /* fall through */
-      }
-    }
-
-    return {
-      ok: false,
-      message:
-        "Could not show a notification. Enable TokenPulse in System Settings → Notifications, then try again.",
-    };
+    activeNotification.show();
+    return { ok: true, message: "Test notification sent." };
   });
 
   ipcMain.handle("tp:hide", () => panel?.hide());
