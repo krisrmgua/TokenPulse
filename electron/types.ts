@@ -94,7 +94,7 @@ export interface Prefs {
   openAIBalance?: OpenAIBalanceBaseline;
   /** Swift baseline was copied, or the user set or cleared a balance. */
   openAIBalanceMigrated?: boolean;
-  /** Cyan-on-navy provider tiles (Swift themedProviderLogos). */
+  /** Retired. Plain provider marks only. Kept so older prefs files still load. */
   themedProviderLogos: boolean;
   /** Draw navy capsules behind each provider block. */
   darkBarBackground: boolean;
@@ -178,10 +178,42 @@ export interface CombinedSpend {
   projectedUSD: number;
 }
 
+export interface ScoreboardBadge {
+  name: string;
+  earned: boolean;
+  detail: string;
+}
+
+/** Local Claude Code efficiency board. Same fields the Swift scoreboard renders. */
+export interface ScoreboardModel {
+  score: number;
+  grade: string;
+  modelFitPoints: number;
+  contextPoints: number;
+  costPoints: number;
+  rightModelPct: number;
+  recoverableUSD: number;
+  contextPerTurn: number;
+  churn: number;
+  contextShare: number;
+  cacheHitPct: number;
+  offenders: { label: string; reason: string; opusUSD: number; sonnetUSD: number; savingsUSD: number }[];
+  bloated: { label: string; contextPerTurn: number; costUSD: number }[];
+  badges: ScoreboardBadge[];
+  sparkScores: number[];
+  streak: number;
+  best: number;
+  trend: number;
+  tip: string;
+  sessions: number;
+}
+
 export interface AppState {
   sources: SourceSnapshot[];
   combined: CombinedSpend | null;
   chart: ChartPoint[];
+  /** Present once Claude is on and this month has local sessions. */
+  scoreboard: ScoreboardModel | null;
   prefs: Prefs;
   refreshing: boolean;
   updatedAt?: string;
@@ -189,7 +221,7 @@ export interface AppState {
   openAIKeyConfigured: boolean;
   dataDir: string;
   version: string;
-  /** data:image/png icons for the panel (themed per prefs). */
+  /** data:image/png icons for the panel. */
   icons: Record<SourceId, string>;
 }
 

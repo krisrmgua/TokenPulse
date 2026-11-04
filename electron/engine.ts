@@ -12,7 +12,9 @@ import {
   shortMoney,
   startOfNextMonth,
 } from "./format";
+import { buildScoreboard } from "./efficiency";
 import type { Pricing } from "./pricing";
+import { ScoreHistory } from "./scoreHistory";
 import type { PrefsStore } from "./prefs";
 import type { OpenAIKeyStore } from "./openaiAdmin";
 import type { SpendLedger } from "./ledger";
@@ -22,6 +24,7 @@ import {
   SOURCE_NAMES,
   type AppState,
   type CombinedSpend,
+  type ScoreboardModel,
   type Meter,
   type Prefs,
   type SourceId,
@@ -107,6 +110,9 @@ export interface EngineMeta {
 
 export class Engine {
   private readonly claudeScanner: ClaudeTranscriptScanner;
+  private readonly history: ScoreHistory;
+  private readonly pricing: Pricing;
+  private scoreboard: ScoreboardModel | null = null;
   private readonly cursorClient = new CursorClient();
   private claude: Slot<ClaudeRollup> = {};
   private claudePersonal: Slot<ClaudeUsageSnapshot> = {};
@@ -128,7 +134,9 @@ export class Engine {
     pricing: Pricing,
     private readonly meta: EngineMeta,
   ) {
+    this.pricing = pricing;
     this.claudeScanner = new ClaudeTranscriptScanner(pricing);
+    this.history = new ScoreHistory(path.join(meta.dataDir, "history.json"));
   }
 
   onChange(listener: () => void): () => void {
@@ -166,6 +174,7 @@ export class Engine {
     if (id === "claude") {
       this.claude = {};
       this.claudePersonal = {};
+      this.scoreboard = null;
     }
   }
 
@@ -209,10 +218,9 @@ export class Engine {
     const tasks: Promise<void>[] = [];
 
     if (s.claude.enabled) {
+      tasks.push(this.run(this.claude, 0, force, () => this.claudeScanner.rollup(new Date())));
       if (s.claude.account === "personal") {
         tasks.push(this.run(this.claudePersonal, REMOTE_MIN_MS, force, () => fetchClaudeUsage()));
-      } else {
-        tasks.push(this.run(this.claude, 0, force, () => this.claudeScanner.rollup(new Date())));
       }
     }
 
@@ -258,6 +266,7 @@ export class Engine {
     }
 
     await Promise.all(tasks);
+    this.publishScoreboard();
 
     const combined = this.combined(this.prefs.get());
     if (combined) {
@@ -266,6 +275,28 @@ export class Engine {
       } catch {
         // Ledger is a convenience; a write failure must not break refresh.
       }
+    }
+  }
+
+  /** Local Claude Code score. Hidden until this month has sessions. */
+  private publishScoreboard(): void {
+    const enabled = this.prefs.get().sources.claude.enabled;
+    const rollup = this.claude.data;
+    const scan = this.claudeScanner.lastScan();
+    if (!enabled || !rollup || rollup.sessions === 0) {
+      this.scoreboard = null;
+      return;
+    }
+    try {
+      this.scoreboard = buildScoreboard({
+        records: scan.records,
+        sessions: scan.sessions,
+        rollup,
+        pricing: this.pricing,
+        history: this.history,
+      });
+    } catch {
+      this.scoreboard = null;
     }
   }
 
@@ -313,6 +344,7 @@ export class Engine {
       sources,
       combined,
       chart: combined ? this.ledger.monthChart(combined.monthUSD, combined.projectedUSD) : [],
+      scoreboard: p.sources.claude.enabled ? this.scoreboard : null,
       prefs: p,
       refreshing: this.refreshing,
       updatedAt: this.updatedAt ? new Date(this.updatedAt).toISOString() : undefined,
@@ -441,6 +473,7 @@ export class Engine {
     out.credential = claude
       ? `Claude CLI /usage (${tildify(claude)})`
       : "Claude CLI not found. Install Claude Code and run claude once to /login.";
+    out.lines.push({ label: "Plan", value: "Pro" });
     const usage = out.enabled ? this.usable(this.claudePersonal, false) : undefined;
     if (usage) {
       const bits: string[] = [];
@@ -510,17 +543,7 @@ export class Engine {
         };
         out.meters.push(meter);
         out.barText = `CU ${barPercent(pct, end ? new Date(end) : undefined)}`;
-        if (c.planUsage) {
-          out.lines.push(
-            { label: "Plan limit", value: exactMoney(c.planUsage.limitUSD) },
-            { label: "Included spend", value: exactMoney(c.planUsage.includedSpendUSD) },
-          );
-        } else {
-          out.lines.push({
-            label: "Allowance (no plan meter reported)",
-            value: exactMoney(p.cursorPersonalAllowanceUSD),
-          });
-        }
+        out.lines.push({ label: "Plan", value: "Pro" });
       }
       out.lines.push({ label: "Cursor user id", value: String(c.userId) });
     }
@@ -534,6 +557,7 @@ export class Engine {
       out.credential = codex
         ? `Codex CLI session (${tildify(codex)} app-server)`
         : "Codex CLI not found (install from chatgpt.com/codex)";
+      out.lines.push({ label: "Plan", value: "Plus" });
       const c = out.enabled ? this.usable(this.chatgptPersonal, false) : undefined;
       if (c) {
         if (c.session) {

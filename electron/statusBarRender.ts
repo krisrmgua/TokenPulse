@@ -97,32 +97,25 @@ function providersDir(): string {
   return path.join(process.cwd(), "menubar", "Artwork", "providers");
 }
 
-function iconPath(id: SourceId, themed: boolean): string | null {
-  const name = themed ? `${id}-themed.png` : `${id}.png`;
-  const file = path.join(providersDir(), name);
-  if (fs.existsSync(file)) return file;
-  const alt = path.join(providersDir(), themed ? `${id}.png` : `${id}-themed.png`);
-  return fs.existsSync(alt) ? alt : null;
+function iconPath(id: SourceId): string | null {
+  const file = path.join(providersDir(), `${id}.png`);
+  return fs.existsSync(file) ? file : null;
 }
 
 /** Warm provider icons (napi-rs needs async loadImage — Buffer Image.src does not paint). */
-export async function warmStatusBarIcons(
-  ids: SourceId[],
-  themed: boolean,
-): Promise<void> {
+export async function warmStatusBarIcons(ids: SourceId[]): Promise<void> {
   await Promise.all(
     ids.map(async (id) => {
-      const key = `${id}:${themed ? "t" : "p"}`;
-      if (iconCache.has(key)) return;
-      const file = iconPath(id, themed);
+      if (iconCache.has(id)) return;
+      const file = iconPath(id);
       if (!file) return;
-      iconCache.set(key, lightenTowardWhite(await loadImage(file)));
+      iconCache.set(id, lightenTowardWhite(await loadImage(file)));
     }),
   );
 }
 
-function cachedIcon(id: SourceId, themed: boolean): Image | null {
-  return iconCache.get(`${id}:${themed ? "t" : "p"}`) ?? null;
+function cachedIcon(id: SourceId): Image | null {
+  return iconCache.get(id) ?? null;
 }
 
 /** Pull a menu-bar mark a step toward white without changing its shape. */
@@ -263,7 +256,7 @@ function paintSharedPill(
   bh: number,
   k: number,
   S: number,
-  prefs: { darkBarBackground: boolean; themedProviderLogos: boolean; sharedRingLetters?: boolean },
+  prefs: { darkBarBackground: boolean; sharedRingLetters?: boolean },
 ): void {
   const pt = (n: number) => Math.round(n * S);
   const pad = pillPad(k);
@@ -289,7 +282,7 @@ function paintSharedPill(
   blocks.forEach((b, bi) => {
     if (bi > 0) cursor += 8 * k;
     ctx.globalAlpha = b.stale ? 0.45 : 1;
-    const icon = cachedIcon(b.id, prefs.themedProviderLogos);
+    const icon = cachedIcon(b.id);
     if (icon) {
       ctx.drawImage(icon, pt(cursor), pt(midY - iconSize / 2), pt(iconSize), pt(iconSize));
     }
@@ -360,7 +353,7 @@ function paintSharedPill(
  */
 export function renderStatusBarPng(
   blocks: StatusBlock[],
-  prefs: Pick<Prefs, "darkBarBackground" | "themedProviderLogos"> & {
+  prefs: Pick<Prefs, "darkBarBackground"> & {
     menuBarScale?: number;
     sharedRingLetters?: boolean;
   },
@@ -434,7 +427,7 @@ export function renderStatusBarPng(
       ctx.fill();
     }
 
-    const icon = cachedIcon(b.id, prefs.themedProviderLogos);
+    const icon = cachedIcon(b.id);
     if (icon) {
       ctx.drawImage(
         icon,

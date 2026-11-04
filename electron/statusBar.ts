@@ -43,7 +43,6 @@ function metricsFor(
   const colorOpts = {
     spendColorsEnabled: prefs.spendColorsEnabled,
     pastelBarColors: prefs.pastelBarColors,
-    themedProviderLogos: prefs.themedProviderLogos,
   };
 
   if (s.meters.length > 0) {
@@ -115,10 +114,7 @@ export async function createStatusBarImage(
 ): Promise<NativeImage> {
   const { nativeImage } = await import("electron");
   if (blocks.length === 0) return nativeImage.createEmpty();
-  await warmStatusBarIcons(
-    blocks.map((b) => b.id),
-    prefs.themedProviderLogos,
-  );
+  await warmStatusBarIcons(blocks.map((b) => b.id));
   const { png, scaleFactor } = renderStatusBarPng(blocks, prefs);
   if (png.length === 0) return nativeImage.createEmpty();
   return nativeImage.createFromBuffer(png, { scaleFactor });

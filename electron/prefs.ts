@@ -22,7 +22,7 @@ function defaultSource(id: SourceId): SourcePrefs {
     enabled: false,
     showInTray: false,
     account: accounts.includes("personal") ? "personal" : accounts[0],
-    sharedPill: true,
+    sharedPill: false,
     barDesign: "divider",
     showDailyInBar: true,
     showMonthlyInBar: true,
@@ -113,7 +113,7 @@ function normalizeSource(id: SourceId, s: Partial<SourcePrefs> | undefined, base
     enabled: typeof s?.enabled === "boolean" ? s.enabled : base.enabled,
     showInTray: typeof s?.showInTray === "boolean" ? s.showInTray : base.showInTray,
     account,
-    sharedPill: typeof s?.sharedPill === "boolean" ? s.sharedPill : true,
+    sharedPill: typeof s?.sharedPill === "boolean" ? s.sharedPill : false,
     barDesign: parseBarDesign(s?.barDesign, spendOnly),
     showDailyInBar: typeof s?.showDailyInBar === "boolean" ? s.showDailyInBar : base.showDailyInBar,
     showMonthlyInBar:
@@ -251,9 +251,6 @@ export class PrefsStore {
         : undefined;
       this.data.openAIBalanceMigrated = true;
     }
-    if (typeof patch.themedProviderLogos === "boolean") {
-      this.data.themedProviderLogos = patch.themedProviderLogos;
-    }
     if (typeof patch.darkBarBackground === "boolean") {
       this.data.darkBarBackground = patch.darkBarBackground;
     }
@@ -325,7 +322,6 @@ export class PrefsStore {
         _cursorDesign?: BarDesign;
       };
       Object.assign(base, {
-        themedProviderLogos: swift.themedProviderLogos ?? base.themedProviderLogos,
         darkBarBackground: swift.darkBarBackground ?? base.darkBarBackground,
         spendColorsEnabled: swift.spendColorsEnabled ?? base.spendColorsEnabled,
         pastelBarColors: swift.pastelBarColors ?? base.pastelBarColors,
@@ -365,9 +361,7 @@ export class PrefsStore {
       base.cursorPersonalAllowanceUSD = raw.cursorPersonalAllowanceUSD;
     }
     if (typeof raw.openAtLogin === "boolean") base.openAtLogin = raw.openAtLogin;
-    if (typeof raw.themedProviderLogos === "boolean") {
-      base.themedProviderLogos = raw.themedProviderLogos;
-    }
+    if (raw.themedProviderLogos === true) this.writeAfterLoad = true;
     if (typeof raw.darkBarBackground === "boolean") base.darkBarBackground = raw.darkBarBackground;
     base.menuBarScale = menuBarScaleFromRaw(
       raw.menuBarScale,
@@ -413,9 +407,6 @@ export class PrefsStore {
         _legacyDesign?: BarDesign;
         _cursorDesign?: BarDesign;
       };
-      if (typeof swift.themedProviderLogos === "boolean") {
-        base.themedProviderLogos = swift.themedProviderLogos;
-      }
       if (typeof swift.darkBarBackground === "boolean") {
         base.darkBarBackground = swift.darkBarBackground;
       }
