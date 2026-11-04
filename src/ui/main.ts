@@ -31,6 +31,8 @@ interface TokenPulseApi {
   setOpenAIBalance: (usd: number | null) => Promise<ActionResult>;
   openDataDir: () => Promise<void>;
   openExternal: (url: string) => Promise<void>;
+  openNotificationSettings: () => Promise<void>;
+  sendTestNotification: () => Promise<ActionResult>;
   hide: () => Promise<void>;
   fitHeight: (height: number) => Promise<void>;
   quit: () => Promise<void>;
@@ -45,7 +47,7 @@ declare global {
 }
 
 type MainRoute = "overview" | "spend" | "efficiency" | "scoreboard" | "alerts" | "options";
-type Route = MainRoute | `source:${SourceId}` | `settings:${SourceId}`;
+type Route = MainRoute | "notifications" | `source:${SourceId}` | `settings:${SourceId}`;
 type NoticeKind = "ok" | "warn" | "err";
 
 /** Sidebar / tray provider order — matches Swift Mission Control. */
@@ -627,10 +629,79 @@ function alertsView(): string {
     </div>`;
 }
 
-function switchRow(act: string, title: string, on: boolean, disabled = false): string {
+function osNotificationStatus(): { label: string; detail: string } {
+  const plat = state?.platform ?? "";
+  const label = plat === "darwin" ? "macOS notifications" : plat === "win32" ? "Windows notifications" : "System notifications";
+  if (typeof Notification === "undefined") {
+    return { label, detail: "not available" };
+  }
+  if (Notification.permission === "granted") {
+    return { label, detail: "enabled" };
+  }
+  if (Notification.permission === "denied") {
+    return { label, detail: "blocked — open notification settings" };
+  }
+  return { label, detail: "not enabled — open notification settings" };
+}
+
+/** Swift Options → Notifications prefs (not the Alerts advisories tab). */
+function notificationsView(st: AppState): string {
+  const p = st.prefs;
+  const threshOn = p.notificationsEnabled && p.allowanceAlertsEnabled;
+  const thresholds = p.alertThresholds
+    .map((t) => {
+      const on = !p.disabledAlertThresholds.includes(t);
+      return switchRow(
+        "alert-threshold",
+        `At ${t}% remaining`,
+        on,
+        !threshOn,
+        `data-threshold="${t}"`,
+      );
+    })
+    .join("");
+  const os = osNotificationStatus();
+  const settingsLabel =
+    st.platform === "darwin"
+      ? "Open macOS notification settings"
+      : st.platform === "win32"
+        ? "Open Windows notification settings"
+        : "Open notification settings";
+
+  return `${noticeHtml()}
+    <h2 class="page-title">Notifications</h2>
+    <div class="settings-panel">
+      ${switchRow("notif-enable", "Enable notifications", p.notificationsEnabled)}
+      ${switchRow("notif-allowance", "Low allowance alerts", p.allowanceAlertsEnabled, !p.notificationsEnabled)}
+      ${thresholds}
+      <div class="settings-row action-row">
+        <button type="button" class="mission-btn" data-act="customize-thresholds">Customize thresholds…</button>
+      </div>
+      <div class="settings-sep"></div>
+      ${switchRow("notif-opus", "Claude model-spend advisories", p.opusAlertsEnabled, !p.notificationsEnabled)}
+      ${switchRow("notif-sounds", "Notification sounds", p.notificationSounds, !p.notificationsEnabled)}
+      <div class="settings-sep"></div>
+      <div class="settings-row status-row">
+        <span class="settings-muted">${escapeHtml(os.label)}</span>
+        <span class="settings-status">${escapeHtml(os.detail)}</span>
+      </div>
+      <div class="settings-row action-row stacked">
+        <button type="button" class="mission-btn" data-act="test-notification">Send test notification</button>
+        <button type="button" class="mission-btn" data-act="open-notif-settings">${escapeHtml(settingsLabel)}</button>
+      </div>
+    </div>`;
+}
+
+function switchRow(
+  act: string,
+  title: string,
+  on: boolean,
+  disabled = false,
+  extraAttrs = "",
+): string {
   return `<label class="settings-row switch-row${disabled ? " disabled" : ""}">
     <span class="settings-label">${escapeHtml(title)}</span>
-    <input type="checkbox" class="switch" data-act="${act}" ${on ? "checked" : ""} ${disabled ? "disabled" : ""} />
+    <input type="checkbox" class="switch" data-act="${act}" ${extraAttrs} ${on ? "checked" : ""} ${disabled ? "disabled" : ""} />
   </label>`;
 }
 
@@ -656,7 +727,7 @@ function optionsView(st: AppState): string {
         <span class="settings-label">Check</span>
         <select class="settings-menu" data-act="refresh-minutes" aria-label="Check interval">${refreshOpts}</select>
       </div>
-      <button type="button" class="settings-row nav-row" data-act="go" data-route="alerts">
+      <button type="button" class="settings-row nav-row" data-act="go" data-route="notifications">
         <span class="settings-label">Notifications</span>
         <span class="settings-chevron" aria-hidden="true">›</span>
       </button>
@@ -770,6 +841,7 @@ function isNestedRoute(): boolean {
     route.startsWith("source:") ||
     route.startsWith("settings:") ||
     route === "options" ||
+    route === "notifications" ||
     route === "spend"
   );
 }
@@ -841,6 +913,7 @@ function renderContent(st: AppState): void {
   else if (route === "efficiency") html = efficiencyView(st);
   else if (route === "scoreboard") html = scoreboardView(st);
   else if (route === "alerts") html = alertsView();
+  else if (route === "notifications") html = notificationsView(st);
   else if (route === "options") html = optionsView(st);
   else if (route.startsWith("settings:")) html = settingsView(st, route.slice("settings:".length) as SourceId);
   else html = sourceView(st, route.slice("source:".length) as SourceId);
@@ -983,6 +1056,43 @@ async function runAction(act: string, target: HTMLElement): Promise<void> {
     case "open-url":
       if (target.dataset.url) await api.openExternal(target.dataset.url);
       return;
+    case "customize-thresholds": {
+      const current = (state?.prefs.alertThresholds ?? [15, 10, 5]).join(", ");
+      const raw = window.prompt(
+        "Enter 1–10 percent-left levels between 1 and 99, separated by commas. Each level alerts once per provider window until it resets or recovers.",
+        current,
+      );
+      if (raw === null) return;
+      const parts = raw
+        .replaceAll("%", "")
+        .split(/[,;\s]+/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (parts.length === 0 || parts.length > 10 || parts.some((p) => !/^\d+$/.test(p))) {
+        notice = { kind: "err", text: "Use whole percentages from 1 to 99, for example 15, 10, 5." };
+        render(true);
+        return;
+      }
+      const values = [...new Set(parts.map(Number))]
+        .filter((n) => n >= 1 && n <= 99)
+        .sort((a, b) => b - a);
+      if (values.length !== parts.length) {
+        notice = { kind: "err", text: "Use whole percentages from 1 to 99, for example 15, 10, 5." };
+        render(true);
+        return;
+      }
+      await api.setPrefs({ alertThresholds: values, disabledAlertThresholds: [] });
+      notice = { kind: "ok", text: `Thresholds set to ${values.join(", ")}%.` };
+      await load(true);
+      return;
+    }
+    case "test-notification":
+      setNotice(await api.sendTestNotification(), "Could not send a test notification.");
+      render(true);
+      return;
+    case "open-notif-settings":
+      await api.openNotificationSettings();
+      return;
     case "reset":
       if (Date.now() < resetArmedUntil) {
         resetArmedUntil = 0;
@@ -1040,6 +1150,32 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
       await api.setPrefs({ rememberPanelPlace: (target as HTMLInputElement).checked });
       await load(true);
       return;
+    case "notif-enable":
+      await api.setPrefs({ notificationsEnabled: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "notif-allowance":
+      await api.setPrefs({ allowanceAlertsEnabled: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "notif-opus":
+      await api.setPrefs({ opusAlertsEnabled: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "notif-sounds":
+      await api.setPrefs({ notificationSounds: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "alert-threshold": {
+      const threshold = Number(target.dataset.threshold);
+      if (!Number.isFinite(threshold) || !state) return;
+      const disabled = new Set(state.prefs.disabledAlertThresholds);
+      if ((target as HTMLInputElement).checked) disabled.delete(threshold);
+      else disabled.add(threshold);
+      await api.setPrefs({ disabledAlertThresholds: [...disabled] });
+      await load(true);
+      return;
+    }
     case "daily-bar":
       if (id) await setSource(id, { showDailyInBar: (target as HTMLInputElement).checked });
       return;
@@ -1100,7 +1236,7 @@ document.querySelectorAll<HTMLButtonElement>(".tab").forEach((t) => {
 el.refresh.addEventListener("click", () => void runAction("refresh", el.refresh));
 el.options.addEventListener("click", () => go("options"));
 el.back.addEventListener("click", () => {
-  if (route.startsWith("settings:")) go("options");
+  if (route.startsWith("settings:") || route === "notifications") go("options");
   else if (route.startsWith("source:")) go("overview");
   else go(lastMainRoute === "options" || lastMainRoute === "spend" ? "overview" : lastMainRoute);
 });

@@ -1,4 +1,13 @@
-import { app, BrowserWindow, Menu, Tray, ipcMain, screen, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  Notification,
+  Tray,
+  ipcMain,
+  screen,
+  shell,
+} from "electron";
 import path from "node:path";
 import { Engine } from "./engine";
 import { SpendLedger } from "./ledger";
@@ -214,6 +223,12 @@ function wireIpc(): void {
       spendColorsEnabled: patch.spendColorsEnabled,
       pastelBarColors: patch.pastelBarColors,
       rememberPanelPlace: patch.rememberPanelPlace,
+      notificationsEnabled: patch.notificationsEnabled,
+      allowanceAlertsEnabled: patch.allowanceAlertsEnabled,
+      opusAlertsEnabled: patch.opusAlertsEnabled,
+      notificationSounds: patch.notificationSounds,
+      alertThresholds: patch.alertThresholds,
+      disabledAlertThresholds: patch.disabledAlertThresholds,
     });
     if (typeof patch.openAtLogin === "boolean") {
       app.setLoginItemSettings({ openAtLogin: patch.openAtLogin });
@@ -283,6 +298,31 @@ function wireIpc(): void {
 
   ipcMain.handle("tp:openExternal", (_e, url: unknown) => {
     if (typeof url === "string" && url.startsWith("https://")) void shell.openExternal(url);
+  });
+
+  ipcMain.handle("tp:openNotificationSettings", () => {
+    if (process.platform === "darwin") {
+      void shell.openExternal(
+        "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
+      );
+    } else if (process.platform === "win32") {
+      void shell.openExternal("ms-settings:notifications");
+    }
+  });
+
+  ipcMain.handle("tp:sendTestNotification", (): ActionResult => {
+    if (!Notification.isSupported()) {
+      return { ok: false, message: "Notifications are not available on this system." };
+    }
+    const sound = prefs.get().notificationSounds;
+    const n = new Notification({
+      title: "TokenPulse",
+      subtitle: "Notification preview",
+      body: "Allowance alerts use this icon and include the provider, window and reset time.",
+      silent: !sound,
+    });
+    n.show();
+    return { ok: true, message: "Test notification sent." };
   });
 
   ipcMain.handle("tp:hide", () => panel?.hide());
