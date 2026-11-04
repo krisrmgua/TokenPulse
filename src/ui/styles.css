@@ -799,7 +799,14 @@ input[type="number"] {
 
 .page-title {
   font-size: 18px;
+  font-weight: 600;
   margin: 0;
+}
+
+.page-sub {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .detail-head {
@@ -818,6 +825,175 @@ input[type="number"] {
 
 .opt-source {
   gap: 10px;
+}
+
+/* Swift MissionControl displayOptions layout */
+.settings-panel {
+  margin-top: 14px;
+  padding: 4px 14px;
+  background: var(--panel);
+  border-radius: 10px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.settings-label {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.settings-menu {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--cyan);
+  font: inherit;
+  font-size: 12px;
+  padding: 0 14px 0 0;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%5899ADC7' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right center;
+}
+
+.settings-menu:focus {
+  outline: none;
+}
+
+.settings-menu option {
+  color: var(--ink);
+  background: var(--panel);
+}
+
+.nav-row {
+  cursor: pointer;
+}
+
+.nav-row:hover .settings-label {
+  color: var(--cyan);
+}
+
+.settings-chevron {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.switch-row {
+  cursor: pointer;
+}
+
+.switch-row.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.switch {
+  appearance: none;
+  position: relative;
+  width: 32px;
+  height: 18px;
+  flex: none;
+  margin: 0;
+  border-radius: 999px;
+  background: #3a4f63;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #edf5ff;
+  transition: transform 0.15s ease;
+}
+
+.switch:checked {
+  background: var(--cyan);
+}
+
+.switch:checked::after {
+  transform: translateX(14px);
+}
+
+.switch:disabled {
+  cursor: default;
+}
+
+.sources-block {
+  margin-top: 14px;
+  gap: 7px;
+}
+
+.sources-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.source-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.mission-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.mission-btn:hover {
+  border-color: rgba(88, 210, 236, 0.45);
+}
+
+.note-panel {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--panel);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.opt-actions {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.login-toggle {
+  margin-left: 4px;
+}
+
+.foot-meta {
+  margin-top: 12px;
 }
 
 .stub {

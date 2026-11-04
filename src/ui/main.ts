@@ -1,4 +1,4 @@
-import { barDesignTitle, barDesignsFor, type BarDesign } from "../../electron/barDesign";
+import { barDesignsFor, type BarDesign } from "../../electron/barDesign";
 import { displayDate } from "../../electron/format";
 import {
   POLICY_CAP,
@@ -627,60 +627,56 @@ function alertsView(): string {
     </div>`;
 }
 
+function switchRow(act: string, title: string, on: boolean, disabled = false): string {
+  return `<label class="settings-row switch-row${disabled ? " disabled" : ""}">
+    <span class="settings-label">${escapeHtml(title)}</span>
+    <input type="checkbox" class="switch" data-act="${act}" ${on ? "checked" : ""} ${disabled ? "disabled" : ""} />
+  </label>`;
+}
+
 function optionsView(st: AppState): string {
   const p = st.prefs;
-  const parts = [noticeHtml(), `<h2 class="page-title">Display &amp; options</h2>`];
-
-  const refreshOpts = REFRESH_CHOICES.map(
-    (m) => `<option value="${m}" ${m === p.refreshMinutes ? "selected" : ""}>${m} minutes</option>`,
-  ).join("");
-  parts.push(`<div class="opt-section"><h3>Check usage every</h3><div class="card">
-    <div class="form-row">
-      <select data-act="refresh-minutes" aria-label="Refresh interval">${refreshOpts}</select>
-    </div>
-  </div></div>`);
-
-  parts.push(`<div class="opt-section"><h3>Menu bar</h3><div class="card">
-    <label class="toggle"><input type="checkbox" data-act="themed-logos" ${p.themedProviderLogos ? "checked" : ""} /> Themed provider logos</label>
-    <label class="toggle"><input type="checkbox" data-act="dark-bar" ${p.darkBarBackground ? "checked" : ""} /> Dark menu-bar background</label>
-    <label class="toggle"><input type="checkbox" data-act="spend-colors" ${p.spendColorsEnabled ? "checked" : ""} /> Spend colors</label>
-    <div class="muted" style="margin:4px 0 0 22px">Pastel in the menu bar · bright colors in the panel</div>
-    <label class="toggle"><input type="checkbox" data-act="login" ${p.openAtLogin ? "checked" : ""} /> Open at login</label>
-  </div></div>`);
-
-  parts.push(`<div class="opt-section"><h3>Providers</h3><div class="muted" style="margin-bottom:6px">Each provider has its own Enable, Show in Menu, account mode, and menu-bar style.</div>`);
-  for (const s of orderedSources(st)) {
-    const mode =
-      s.accounts.length > 1 ? ` · ${s.account === "work" ? "Work" : "Personal"}` : "";
-    const style = barDesignTitle(st.prefs.sources[s.id].barDesign);
-    parts.push(`<button class="card opt-source provider-btn" data-act="go" data-route="settings:${s.id}">
-      <div class="card-head">
-        ${providerMark(s.id, 26)}
-        <div class="card-titles">
-          <span class="name">${escapeHtml(s.name)}${escapeHtml(mode)}</span>
-          <span class="muted">${s.enabled ? "On" : "Off"} · ${escapeHtml(style)}</span>
-        </div>
-        <span class="spacer"></span>
-        <span class="link">Configure ›</span>
-      </div>
-    </button>`);
-  }
-  parts.push(`</div>`);
-
   const resetArmed = Date.now() < resetArmedUntil;
-  parts.push(`<div class="opt-section"><h3>Data</h3><div class="card">
-    <div class="form-row">
-      <span class="muted" style="flex:1;overflow-wrap:anywhere">${escapeHtml(st.dataDir)}</span>
-      <button class="btn" data-act="open-data">Open folder</button>
-    </div>
-    <div class="form-row">
-      <button class="btn danger" data-act="reset">${resetArmed ? "Click again to reset" : "Reset to defaults…"}</button>
-      <span class="muted">Clears layout and visibility. Saved API keys are kept.</span>
-    </div>
-  </div></div>`);
+  const refreshOpts = REFRESH_CHOICES.map((m) => {
+    const label = m === 1 ? "1 minute" : `${m} minutes`;
+    return `<option value="${m}" ${m === p.refreshMinutes ? "selected" : ""}>${label}</option>`;
+  }).join("");
+  const sourceChips = orderedSources(st)
+    .map(
+      (s) =>
+        `<button type="button" class="mission-btn" data-act="go" data-route="settings:${s.id}">${escapeHtml(s.name)}</button>`,
+    )
+    .join("");
 
-  parts.push(`<div class="muted">TokenPulse ${escapeHtml(st.version)} · ${escapeHtml(st.platform)}</div>`);
-  return parts.join("");
+  return `${noticeHtml()}
+    <h2 class="page-title">Display &amp; options</h2>
+    <p class="page-sub">Display, accounts, and per-source thresholds</p>
+    <div class="settings-panel">
+      <div class="settings-row">
+        <span class="settings-label">Check</span>
+        <select class="settings-menu" data-act="refresh-minutes" aria-label="Check interval">${refreshOpts}</select>
+      </div>
+      <button type="button" class="settings-row nav-row" data-act="go" data-route="alerts">
+        <span class="settings-label">Notifications</span>
+        <span class="settings-chevron" aria-hidden="true">›</span>
+      </button>
+      ${switchRow("themed-logos", "Themed provider logos", p.themedProviderLogos)}
+      ${switchRow("spend-colors", "Spend colors", p.spendColorsEnabled)}
+      ${switchRow("dark-bar", "Dark menu-bar background", p.darkBarBackground)}
+      ${switchRow("pastel-bar", "Pastel menu-bar colors", p.pastelBarColors, !p.spendColorsEnabled)}
+      ${switchRow("remember-place", "Reopen where I left off", p.rememberPanelPlace)}
+    </div>
+    <div class="opt-section sources-block">
+      <h3 class="sources-title">Sources</h3>
+      <div class="source-chips">${sourceChips}</div>
+    </div>
+    <div class="note-panel">Pastel requires spend colors. Efficiency uses local Claude Code sessions in personal or work mode.</div>
+    <div class="opt-actions">
+      <button type="button" class="mission-btn" data-act="reset">${resetArmed ? "Click again to reset" : "Reset to defaults…"}</button>
+      <button type="button" class="mission-btn" data-act="open-data">Open data folder</button>
+      <label class="toggle login-toggle"><input type="checkbox" data-act="login" ${p.openAtLogin ? "checked" : ""} /> Open at login</label>
+    </div>
+    <div class="muted foot-meta">TokenPulse ${escapeHtml(st.version)} · ${escapeHtml(st.platform)}</div>`;
 }
 
 function settingsView(st: AppState, id: SourceId): string {
@@ -1036,6 +1032,14 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
       await api.setPrefs({ spendColorsEnabled: (target as HTMLInputElement).checked });
       await load(true);
       return;
+    case "pastel-bar":
+      await api.setPrefs({ pastelBarColors: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "remember-place":
+      await api.setPrefs({ rememberPanelPlace: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
     case "daily-bar":
       if (id) await setSource(id, { showDailyInBar: (target as HTMLInputElement).checked });
       return;
@@ -1120,8 +1124,11 @@ document.addEventListener("keydown", (e) => {
 
 api.onChanged(() => void load());
 api.onOpened(() => {
-  route = "overview";
-  lastMainRoute = "overview";
+  const remember = state?.prefs.rememberPanelPlace === true;
+  if (!remember) {
+    route = "overview";
+    lastMainRoute = "overview";
+  }
   notice = null;
   el.content.scrollTop = 0;
   void load(true);

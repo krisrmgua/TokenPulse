@@ -42,7 +42,8 @@ export function defaultPrefs(): Prefs {
     themedProviderLogos: false,
     darkBarBackground: true,
     spendColorsEnabled: true,
-    pastelBarColors: false,
+    pastelBarColors: true,
+    rememberPanelPlace: false,
   };
 }
 
@@ -89,6 +90,8 @@ function readSwiftDefaults(): Partial<Prefs> {
     if (/spendColorsEnabled\s*=\s*0/.test(raw)) out.spendColorsEnabled = false;
     if (/pastelMenuBarColors\s*=\s*1/.test(raw)) out.pastelBarColors = true;
     if (/pastelMenuBarColors\s*=\s*0/.test(raw)) out.pastelBarColors = false;
+    if (/rememberPanelPlace\s*=\s*1/.test(raw)) out.rememberPanelPlace = true;
+    if (/rememberPanelPlace\s*=\s*0/.test(raw)) out.rememberPanelPlace = false;
     const design = raw.match(/statusBarDesign\s*=\s*([a-z]+)/);
     if (design && BAR_IDS.has(design[1] as BarDesign)) {
       // Applied per-source below when sources lack an explicit design.
@@ -175,6 +178,9 @@ export class PrefsStore {
     if (typeof patch.pastelBarColors === "boolean") {
       this.data.pastelBarColors = patch.pastelBarColors;
     }
+    if (typeof patch.rememberPanelPlace === "boolean") {
+      this.data.rememberPanelPlace = patch.rememberPanelPlace;
+    }
     this.persist();
     return this.get();
   }
@@ -207,6 +213,7 @@ export class PrefsStore {
         darkBarBackground: swift.darkBarBackground ?? base.darkBarBackground,
         spendColorsEnabled: swift.spendColorsEnabled ?? base.spendColorsEnabled,
         pastelBarColors: swift.pastelBarColors ?? base.pastelBarColors,
+        rememberPanelPlace: swift.rememberPanelPlace ?? base.rememberPanelPlace,
       });
       if (swift._legacyDesign) {
         for (const id of SOURCE_IDS) {
@@ -248,6 +255,13 @@ export class PrefsStore {
       base.spendColorsEnabled = raw.spendColorsEnabled;
     }
     if (typeof raw.pastelBarColors === "boolean") base.pastelBarColors = raw.pastelBarColors;
+    if (typeof raw.rememberPanelPlace === "boolean") {
+      base.rememberPanelPlace = raw.rememberPanelPlace;
+    } else {
+      // Tray used to force pastel; keep that until the user flips the new toggle.
+      base.pastelBarColors = true;
+      base.rememberPanelPlace = false;
+    }
 
     // Existing Electron prefs without display keys → seed from Swift once.
     if (

@@ -297,11 +297,10 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Top-origin. Value was 1pt above label (Swift 12/11); at 14/13 that reads high —
-      // drop the $ a point past the label so optical centers line up with D/M.
+      // Top-origin. At 14/13, Swift's value+0 sat a hair high vs D/M — nudge +1 only.
       const rowY = y0 + (b.design === "baseline" ? 3 : 4);
       const labelOffset = b.design === "baseline" ? -1 : 1;
-      const valueOffset = b.design === "baseline" ? -2 : 2;
+      const valueOffset = b.design === "baseline" ? -2 : 1;
       ctx.textBaseline = "top";
       ctx.fillStyle = LABEL;
       ctx.font = labelFontPx;
