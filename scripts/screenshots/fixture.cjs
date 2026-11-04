@@ -394,7 +394,7 @@ module.exports = {
           "showInTray": true,
           "account": "personal",
           "barDesign": "divider",
-        "sharedPill": true,
+        "sharedPill": false,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -404,7 +404,7 @@ module.exports = {
           "showInTray": true,
           "account": "work",
           "barDesign": "divider",
-        "sharedPill": true,
+        "sharedPill": false,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -414,7 +414,7 @@ module.exports = {
           "showInTray": true,
           "account": "personal",
           "barDesign": "divider",
-        "sharedPill": true,
+        "sharedPill": false,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -424,7 +424,7 @@ module.exports = {
           "showInTray": true,
           "account": "work",
           "barDesign": "divider",
-        "sharedPill": true,
+        "sharedPill": false,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -434,7 +434,7 @@ module.exports = {
           "showInTray": true,
           "account": "personal",
           "barDesign": "divider",
-        "sharedPill": true,
+        "sharedPill": false,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -443,7 +443,7 @@ module.exports = {
       "refreshMinutes": 1,
       "cursorPersonalAllowanceUSD": 20,
       "openAtLogin": true,
-      "themedProviderLogos": true,
+      "themedProviderLogos": false,
       "darkBarBackground": true,
       "menuBarScale": 100,
       "spendColorsEnabled": true,
@@ -470,13 +470,13 @@ module.exports = {
     "platform": "darwin",
     "openAIKeyConfigured": false,
     "dataDir": "/Users/demo/Library/Application Support/TokenPulse",
-    "version": "0.5.50",
+    "version": "0.5.51",
     "icons": {
-      "chatgpt": image('menubar/Artwork/providers/chatgpt-themed.png'),
-      "cursor": image('menubar/Artwork/providers/cursor-themed.png'),
-      "grokbot": image('menubar/Artwork/providers/grokbot-themed.png'),
-      "openai": image('menubar/Artwork/providers/openai-themed.png'),
-      "claude": image('menubar/Artwork/providers/claude-themed.png')
+      "chatgpt": image('menubar/Artwork/providers/chatgpt.png'),
+      "cursor": image('menubar/Artwork/providers/cursor.png'),
+      "grokbot": image('menubar/Artwork/providers/grokbot.png'),
+      "openai": image('menubar/Artwork/providers/openai.png'),
+      "claude": image('menubar/Artwork/providers/claude.png')
     }
   },
   "shots": [
@@ -530,13 +530,13 @@ module.exports = {
     },
     {
       "name": "efficiency",
-      "caption": "Current Efficiency screen; the engine is not wired in this Electron build.",
+      "caption": "Efficiency with no scored local sessions in this synthetic example.",
       "action": "document.querySelector(\"[data-route=\\\"efficiency\\\"]\").click();",
       "expect": ""
     },
     {
       "name": "scoreboard",
-      "caption": "Current Scoreboard shell with its empty session state and badge list.",
+      "caption": "Scoreboard with no scored local sessions in this synthetic example.",
       "action": "document.querySelector(\"[data-route=\\\"scoreboard\\\"]\").click();",
       "expect": ""
     },
@@ -567,7 +567,7 @@ module.exports = {
 {
     "name": "shared-pill-settings",
     "caption": "Shared pill enabled for ChatGPT; its separate menu-bar style is disabled while it participates.",
-    "action": "document.querySelector('[data-act=\"go\"][data-route=\"source:chatgpt\"]').click();",
+    "action": "(async () => {document.querySelector('[data-act=\"go\"][data-route=\"source:chatgpt\"]').click();document.querySelector('[data-act=\"shared-pill\"]').click();for(let i=0;i<100 && !document.querySelector('[data-act=\"bar-design\"]').disabled;i++)await new Promise(r=>setTimeout(r,10));})()",
     "expect": "Shared pill",
     "check": "document.querySelector('[data-act=\"shared-pill\"]').checked && document.querySelector('[data-act=\"bar-design\"]').disabled"
 },

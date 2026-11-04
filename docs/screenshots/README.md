@@ -6,7 +6,7 @@ These are captures of `dist/index.html` built from the repository’s actual `sr
 
 No installed app, sign-in, API key, real repository scan, market-data request, or scheduled command is needed. Example stock prices, allowance percentages, balances, and positions are illustrative. There are no AI-generated interface images.
 
-Captured from version **0.5.50**, source revision `2b0c19c`.
+Captured from version **0.5.51**, source revision `e9b3748`.
 
 
 ## Menu-bar icons and views
@@ -31,7 +31,7 @@ Run this on macOS with a graphical session for the same fonts and platform contr
 
 ## Current limitations shown accurately
 
-Efficiency is not wired to session scoring in this Electron build. Scoreboard is an empty shell, and Alerts has no populated advisory history in this capture. The notification preferences screen is captured; these docs do not simulate an OS-delivered notification banner.
+Efficiency and Scoreboard have no scored sessions in this synthetic snapshot. Alerts has no populated advisory history in this capture. The notification preferences screen is captured; these docs do not simulate an OS-delivered notification banner.
 
 ## Menu-bar sheet
 
@@ -95,15 +95,15 @@ Combined work-spend chart with recorded and projected totals.
 
 ### Efficiency
 
-Current Efficiency screen; the engine is not wired in this Electron build.
+Efficiency with no scored local sessions in this synthetic example.
 
-![Current Efficiency screen; the engine is not wired in this Electron build.](efficiency.png)
+![Efficiency with no scored local sessions in this synthetic example.](efficiency.png)
 
 ### Scoreboard
 
-Current Scoreboard shell with its empty session state and badge list.
+Scoreboard with no scored local sessions in this synthetic example.
 
-![Current Scoreboard shell with its empty session state and badge list.](scoreboard.png)
+![Scoreboard with no scored local sessions in this synthetic example.](scoreboard.png)
 
 ### Alerts
 

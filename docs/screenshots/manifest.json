@@ -105,10 +105,10 @@
   },
   {
     "file": "menu-bar-appearance.png",
-    "caption": "ChatGPT and OpenAI examples with themed marks, standard marks, and capsule backgrounds switched off.",
+    "caption": "ChatGPT and OpenAI using the current monochrome marks, with capsule backgrounds on and off.",
     "size": {
       "width": 1588,
-      "height": 788
+      "height": 576
     }
   },
   {
@@ -140,7 +140,7 @@
     "caption": "Provider details and per-source menu-bar options: ChatGPT.",
     "size": {
       "width": 1560,
-      "height": 1366
+      "height": 1334
     }
   },
   {
@@ -156,7 +156,7 @@
     "caption": "Provider details and per-source menu-bar options: Grok Bot.",
     "size": {
       "width": 1560,
-      "height": 1398
+      "height": 1290
     }
   },
   {
@@ -180,7 +180,7 @@
     "caption": "Provider details and per-source menu-bar options: Claude.",
     "size": {
       "width": 1560,
-      "height": 1366
+      "height": 1334
     }
   },
   {
@@ -193,7 +193,7 @@
   },
   {
     "file": "efficiency.png",
-    "caption": "Current Efficiency screen; the engine is not wired in this Electron build.",
+    "caption": "Efficiency with no scored local sessions in this synthetic example.",
     "size": {
       "width": 1560,
       "height": 920
@@ -201,10 +201,10 @@
   },
   {
     "file": "scoreboard.png",
-    "caption": "Current Scoreboard shell with its empty session state and badge list.",
+    "caption": "Scoreboard with no scored local sessions in this synthetic example.",
     "size": {
       "width": 1560,
-      "height": 1412
+      "height": 920
     }
   },
   {
@@ -244,7 +244,7 @@
     "caption": "Shared pill enabled for ChatGPT; its separate menu-bar style is disabled while it participates.",
     "size": {
       "width": 1560,
-      "height": 1366
+      "height": 1334
     }
   },
   {
@@ -252,7 +252,7 @@
     "caption": "Per-provider style preference set to the stacked-track layout.",
     "size": {
       "width": 1560,
-      "height": 1366
+      "height": 1334
     }
   }
 ]
