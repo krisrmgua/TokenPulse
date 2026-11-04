@@ -8,6 +8,7 @@ import {
   screen,
   shell,
 } from "electron";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { Engine } from "./engine";
 import { SpendLedger } from "./ledger";
@@ -43,6 +44,8 @@ let engine: Engine;
 let prefs: PrefsStore;
 let keys: OpenAIKeyStore;
 let timer: NodeJS.Timeout | undefined;
+/** Keep alive — Electron GCs unreferenced Notification before the banner shows. */
+let activeNotification: Notification | null = null;
 
 function panelUrl(): string {
   if (isDev) return "http://127.0.0.1:5173";
@@ -310,19 +313,65 @@ function wireIpc(): void {
     }
   });
 
-  ipcMain.handle("tp:sendTestNotification", (): ActionResult => {
+  ipcMain.handle("tp:sendTestNotification", async (): Promise<ActionResult> => {
     if (!Notification.isSupported()) {
       return { ok: false, message: "Notifications are not available on this system." };
     }
+
+    // macOS suppresses banners for the focused app (Swift sets willPresent; Electron
+    // does not). Hide the panel first so the preview can actually appear.
+    if (panel && !panel.isDestroyed() && panel.isFocused()) {
+      panel.hide();
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
     const sound = prefs.get().notificationSounds;
-    const n = new Notification({
+    const body =
+      "Allowance alerts use this icon and include the provider, window and reset time.";
+    activeNotification = new Notification({
       title: "TokenPulse",
       subtitle: "Notification preview",
-      body: "Allowance alerts use this icon and include the provider, window and reset time.",
+      body,
       silent: !sound,
     });
-    n.show();
-    return { ok: true, message: "Test notification sent." };
+
+    const shown = await new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(ok);
+      };
+      activeNotification!.once("show", () => finish(true));
+      activeNotification!.show();
+      setTimeout(() => finish(false), 900);
+    });
+
+    if (shown) return { ok: true, message: "Test notification sent." };
+
+    // Ad-hoc / unsigned builds often never emit "show". Fall back like a Script
+    // notification so the click still does something visible.
+    if (process.platform === "darwin") {
+      try {
+        execFileSync(
+          "osascript",
+          [
+            "-e",
+            `display notification ${JSON.stringify(body)} with title "TokenPulse" subtitle "Notification preview"`,
+          ],
+          { timeout: 5000 },
+        );
+        return { ok: true, message: "Test notification sent." };
+      } catch {
+        /* fall through */
+      }
+    }
+
+    return {
+      ok: false,
+      message:
+        "Could not show a notification. Enable TokenPulse in System Settings → Notifications, then try again.",
+    };
   });
 
   ipcMain.handle("tp:hide", () => panel?.hide());
