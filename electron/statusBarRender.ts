@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { isStacked, type BarDesign } from "./barDesign";
-import type { Prefs, SourceId } from "./types";
+import { menuBarScaleFromRaw, type Prefs, type SourceId } from "./types";
 import type { StatusBlock } from "./statusBarTypes";
 
 export type { StatusBlock, StatusMetric } from "./statusBarTypes";
@@ -29,23 +29,29 @@ function rgb(c: [number, number, number], alpha = 1): string {
   return `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${alpha})`;
 }
 
-function chromeHeight(design: BarDesign, metricCount = 2): number {
+/** Size factor for every menu-bar style, including Compact stack. `percent` is 100…65. */
+function menuScale(percent: number): number {
+  return menuBarScaleFromRaw(percent, false) / 100;
+}
+
+function chromeHeight(design: BarDesign, metricCount = 2, k = 1): number {
   // Same capsule height for stacked + divider so neighbors match in the menu bar.
   // A third stacked figure (OpenAI B) needs another row.
-  if (isStacked(design) && metricCount > 2) return 4 + metricCount * 12;
-  return 28;
+  const base = isStacked(design) && metricCount > 2 ? 4 + metricCount * 12 : 28;
+  return base * k;
 }
 
-function iconSizeFor(_design: BarDesign): number {
-  return 18;
+function iconSizeFor(_design: BarDesign, k = 1): number {
+  return 18 * k;
 }
 
-function padFor(_design: BarDesign): number {
-  return 7;
+/** Side inset. Shrinks with the size so a smaller pill also has less empty space. */
+function pillPad(k: number): number {
+  return Math.max(2, Math.round(7 * k));
 }
 
-function iconGapFor(_design: BarDesign): number {
-  return 5;
+function iconGapFor(k: number): number {
+  return Math.max(2, Math.round(5 * k));
 }
 
 function labelValueGap(_design: BarDesign): number {
@@ -56,11 +62,14 @@ function metricGap(design: BarDesign): number {
   return isStacked(design) ? 0 : 13;
 }
 
-function fontsFor(design: BarDesign): { value: string; label: string } {
-  if (isStacked(design)) {
-    return { value: VALUE_FONT_STACKED, label: LABEL_FONT_STACKED };
-  }
-  return { value: VALUE_FONT, label: LABEL_FONT };
+function fontsFor(design: BarDesign, k = 1): { value: string; label: string } {
+  const base = isStacked(design)
+    ? { value: VALUE_FONT_STACKED, label: LABEL_FONT_STACKED }
+    : { value: VALUE_FONT, label: LABEL_FONT };
+  if (k === 1) return base;
+  const scale = (font: string) =>
+    font.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Math.max(8, Math.round(Number(n) * k))}px`);
+  return { value: scale(base.value), label: scale(base.label) };
 }
 
 function measure(ctx: SKRSContext2D, text: string, font: string): number {
@@ -121,6 +130,7 @@ function contentWidth(
   b: StatusBlock,
   valueFont: string,
   labelFont: string,
+  k = 1,
 ): number {
   if (isStacked(b.design)) {
     const labels = Math.max(0, ...b.metrics.map((m) => measure(ctx, m.label, labelFont)));
@@ -128,23 +138,23 @@ function contentWidth(
     const track =
       (b.design === "lanes" || b.design === "segments") &&
       b.metrics.some((m) => m.percent !== undefined)
-        ? 60
+        ? 60 * k
         : 0;
-    return labels + 5 + track + values;
+    return labels + 5 * k + track + values;
   }
-  const lv = labelValueGap(b.design);
-  const mg = metricGap(b.design);
+  const lv = labelValueGap(b.design) * k;
+  const mg = metricGap(b.design) * k;
   let content = 0;
   b.metrics.forEach((m, i) => {
     const row =
       measure(ctx, m.label, labelFont) +
       lv +
       measure(ctx, m.value, valueFont) +
-      (b.design === "rings" && m.percent !== undefined ? 21 : 0);
+      (b.design === "rings" && m.percent !== undefined ? 21 * k : 0);
     content += row + (i > 0 ? mg : 0);
-    if (b.design === "focus") content += 8;
+    if (b.design === "focus") content += 8 * k;
   });
-  return Math.max(content, 8);
+  return Math.max(content, 8 * k);
 }
 
 function roundRect(
@@ -171,25 +181,33 @@ function roundRect(
  */
 export function renderStatusBarPng(
   blocks: StatusBlock[],
-  prefs: Pick<Prefs, "darkBarBackground" | "themedProviderLogos">,
+  prefs: Pick<Prefs, "darkBarBackground" | "themedProviderLogos"> & { menuBarScale?: number },
 ): { png: Buffer; width: number; height: number; scaleFactor: number } {
   if (blocks.length === 0) {
     return { png: Buffer.alloc(0), width: 0, height: 0, scaleFactor: 2 };
   }
 
   const scaleFactor = 2;
-  const gap = 5;
-  const height = Math.max(...blocks.map((b) => chromeHeight(b.design, b.metrics.length)));
+  const gapScale = menuScale(prefs.menuBarScale ?? 100);
+  const gap = 5 * gapScale;
+  const height = Math.max(
+    ...blocks.map((b) => chromeHeight(b.design, b.metrics.length, menuScale(prefs.menuBarScale ?? 100))),
+  );
 
   const scratch = createCanvas(4, 4);
   const mctx = scratch.getContext("2d");
   // Measure fonts at device pixels so advances match the paint pass.
   mctx.font = VALUE_FONT_STACKED;
   const widths = blocks.map((b) => {
-    const { value, label } = fontsFor(b.design);
-    const pad = padFor(b.design);
+    const k = menuScale(prefs.menuBarScale ?? 100);
+    const { value, label } = fontsFor(b.design, k);
+    const pad = pillPad(k);
     return (
-      pad + iconSizeFor(b.design) + iconGapFor(b.design) + contentWidth(mctx, b, value, label) + pad
+      pad +
+      iconSizeFor(b.design, k) +
+      iconGapFor(k) +
+      contentWidth(mctx, b, value, label, k) +
+      pad
     );
   });
   const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, blocks.length - 1);
@@ -207,20 +225,21 @@ export function renderStatusBarPng(
   let x = 0;
   for (let bi = 0; bi < blocks.length; bi++) {
     const b = blocks[bi];
+    const k = menuScale(prefs.menuBarScale ?? 100);
     const bw = widths[bi];
-    const bh = chromeHeight(b.design, b.metrics.length);
-    const iconSize = iconSizeFor(b.design);
-    const pad = padFor(b.design);
-    const iconGap = iconGapFor(b.design);
-    const lvGap = labelValueGap(b.design);
-    const mGap = metricGap(b.design);
+    const bh = chromeHeight(b.design, b.metrics.length, k);
+    const iconSize = iconSizeFor(b.design, k);
+    const pad = pillPad(k);
+    const iconGap = iconGapFor(k);
+    const lvGap = labelValueGap(b.design) * k;
+    const mGap = metricGap(b.design) * k;
     const y0 = (height - bh) / 2;
     const alpha = b.stale ? 0.45 : 1;
     ctx.globalAlpha = alpha;
 
     if (prefs.darkBarBackground) {
       ctx.fillStyle = b.allowanceEmpty ? EXHAUSTED : PANEL;
-      roundRect(ctx, pt(x), pt(y0), pt(bw), pt(bh), pt(6));
+      roundRect(ctx, pt(x), pt(y0), pt(bw), pt(bh), pt(6 * k));
       ctx.fill();
     }
 
@@ -235,7 +254,7 @@ export function renderStatusBarPng(
       );
     }
 
-    const { value: valueFont, label: labelFont } = fontsFor(b.design);
+    const { value: valueFont, label: labelFont } = fontsFor(b.design, k);
     // Device-pixel font sizes (11pt → 22px @2x).
     const valueFontPx = valueFont.replace(/(\d+)px/, (_, n) => `${Number(n) * S}px`);
     const labelFontPx = labelFont.replace(/(\d+)px/, (_, n) => `${Number(n) * S}px`);
@@ -259,84 +278,88 @@ export function renderStatusBarPng(
 
       if (isStacked(b.design)) {
         // Top-origin; value sits 1pt above label. Stride 12 + inset 3 → ~2pt pad in 28pt chrome.
-        const rowY =
-          b.metrics.length === 1 ? y0 + 7 : y0 + mi * 12 + 3;
+        const rowY = b.metrics.length === 1 ? y0 + 7 * k : y0 + mi * 12 * k + 3 * k;
         ctx.textBaseline = "top";
         ctx.fillStyle = LABEL;
         ctx.font = labelFontPx;
         ctx.fillText(m.label, pt(cursor), pt(rowY));
-        let valueX = cursor + labelColW + 5;
+        let valueX = cursor + labelColW + 5 * k;
         if ((b.design === "lanes" || b.design === "segments") && m.percent !== undefined) {
-          const mw = 54;
-          const my = rowY + 4;
+          const mw = 54 * k;
+          const my = rowY + 4 * k;
           ctx.fillStyle = TRACK;
-          roundRect(ctx, pt(valueX), pt(my), pt(mw), pt(4), pt(2));
+          roundRect(ctx, pt(valueX), pt(my), pt(mw), pt(4 * k), pt(2 * k));
           ctx.fill();
           const frac = Math.max(0, Math.min(1, m.percent / 100));
           if (frac > 0) {
             ctx.fillStyle = color;
-            roundRect(ctx, pt(valueX), pt(my), pt(mw * frac), pt(4), pt(2));
+            roundRect(ctx, pt(valueX), pt(my), pt(mw * frac), pt(4 * k), pt(2 * k));
             ctx.fill();
           }
           // Swift segments: ten slots, nine capsule-colored ticks so the bar reads as dashes.
           if (b.design === "segments") {
             ctx.fillStyle = PANEL;
             for (let n = 1; n < 10; n++) {
-              ctx.fillRect(pt(valueX + (n * mw) / 10 - 0.7), pt(my), Math.max(1, pt(1.4)), pt(4));
+              ctx.fillRect(
+                pt(valueX + (n * mw) / 10 - 0.7 * k),
+                pt(my),
+                Math.max(1, pt(1.4 * k)),
+                pt(4 * k),
+              );
             }
           }
-          valueX += 60;
+          valueX += 60 * k;
         }
         ctx.fillStyle = color;
         ctx.font = valueFontPx;
-        ctx.fillText(m.value, pt(valueX), pt(rowY - 1));
+        ctx.fillText(m.value, pt(valueX), pt(rowY - 1 * k));
         return;
       }
 
       if (b.design === "divider" && mi > 0) {
         ctx.fillStyle = TRACK;
-        ctx.fillRect(pt(cursor - mGap / 2), pt(y0 + 8), pt(1), pt(12));
+        ctx.fillRect(pt(cursor - mGap / 2), pt(y0 + 8 * k), pt(1), pt(12 * k));
       }
 
       const labelW = measure(ctx, m.label, labelFontPx) / S;
       const valueW = measure(ctx, m.value, valueFontPx) / S;
       const rowInner =
-        labelW + lvGap + valueW + (b.design === "rings" && m.percent !== undefined ? 21 : 0);
+        labelW + lvGap + valueW + (b.design === "rings" && m.percent !== undefined ? 21 * k : 0);
 
       if (b.design === "focus" && m.percent === minPct && minPct < 999) {
         ctx.fillStyle = rgb(m.color, 0.18);
-        roundRect(ctx, pt(cursor - 3), pt(y0 + 4), pt(rowInner + 6), pt(20), pt(3));
+        roundRect(ctx, pt(cursor - 3 * k), pt(y0 + 4 * k), pt(rowInner + 6 * k), pt(20 * k), pt(3 * k));
         ctx.fill();
         ctx.fillStyle = color;
-        roundRect(ctx, pt(cursor - 3), pt(y0 + 7), pt(2), pt(14), pt(1));
+        roundRect(ctx, pt(cursor - 3 * k), pt(y0 + 7 * k), pt(2 * k), pt(14 * k), pt(1 * k));
         ctx.fill();
-        cursor += 3;
+        cursor += 3 * k;
       }
 
       if (b.design === "rings" && m.percent !== undefined) {
-        const cx = pt(cursor + 8);
+        const cx = pt(cursor + 8 * k);
         const cy = pt(y0 + bh / 2);
         ctx.strokeStyle = TRACK;
-        ctx.lineWidth = 2.5 * S;
+        ctx.lineWidth = 2.5 * k * S;
         ctx.beginPath();
-        ctx.arc(cx, cy, 8 * S, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 8 * k * S, 0, Math.PI * 2);
         ctx.stroke();
         const frac = Math.max(0, Math.min(1, m.percent / 100));
         if (frac > 0) {
           ctx.strokeStyle = color;
           ctx.lineCap = "round";
           ctx.beginPath();
-          ctx.arc(cx, cy, 8 * S, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
+          ctx.arc(cx, cy, 8 * k * S, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
           ctx.stroke();
         }
-        cursor += 21;
+        cursor += 21 * k;
       }
 
       // Top-origin; 16/15 in 28pt — 5 was high, 8 was low; land in between with the icon.
       // Baseline text sits lower so it meets the underline meter.
-      const rowY = y0 + (b.design === "baseline" ? 8 : 6.5);
-      const labelOffset = b.design === "baseline" ? -1 : 1;
-      const valueOffset = b.design === "baseline" ? -2 : 0.5;
+      const rowY = y0 + (b.design === "baseline" ? 8 : 6.5) * k;
+      const labelOffset = (b.design === "baseline" ? -1 : 1) * k;
+      const valueOffset = (b.design === "baseline" ? -2 : 0.5) * k;
       ctx.textBaseline = "top";
       ctx.fillStyle = LABEL;
       ctx.font = labelFontPx;
@@ -348,20 +371,20 @@ export function renderStatusBarPng(
 
       // Baseline is the underline meter. Divider stays text plus the vertical rule.
       if (b.design === "baseline" && m.percent !== undefined) {
-        const my = y0 + 22;
+        const my = y0 + 22 * k;
         const meterW = labelW + lvGap + valueW;
         ctx.fillStyle = TRACK;
-        roundRect(ctx, pt(cursor), pt(my), pt(meterW), pt(4), pt(2));
+        roundRect(ctx, pt(cursor), pt(my), pt(meterW), pt(4 * k), pt(2 * k));
         ctx.fill();
         const frac = Math.max(0, Math.min(1, m.percent / 100));
         if (frac > 0) {
           ctx.fillStyle = color;
-          roundRect(ctx, pt(cursor), pt(my), pt(meterW * frac), pt(4), pt(2));
+          roundRect(ctx, pt(cursor), pt(my), pt(meterW * frac), pt(4 * k), pt(2 * k));
           ctx.fill();
         }
       }
 
-      cursor += labelW + lvGap + valueW + mGap + (b.design === "focus" ? 5 : 0);
+      cursor += labelW + lvGap + valueW + mGap + (b.design === "focus" ? 5 * k : 0);
     });
 
     ctx.globalAlpha = 1;

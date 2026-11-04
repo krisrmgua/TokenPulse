@@ -306,6 +306,7 @@ function wireIpc(): void {
       openAtLogin: patch.openAtLogin,
       themedProviderLogos: patch.themedProviderLogos,
       darkBarBackground: patch.darkBarBackground,
+      menuBarScale: patch.menuBarScale,
       spendColorsEnabled: patch.spendColorsEnabled,
       pastelBarColors: patch.pastelBarColors,
       rememberPanelPlace: patch.rememberPanelPlace,
