@@ -17,11 +17,11 @@ const LABEL = "rgb(153, 173, 199)";
  * Metrics mirror StatusBarArtwork with `enlarged: true`.
  */
 const VALUE_FONT =
-  '600 12px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
-const LABEL_FONT = '600 11px "SF Pro Text", -apple-system';
+  '600 13px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT = '600 12px "SF Pro Text", -apple-system';
 const VALUE_FONT_STACKED =
-  '600 11px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
-const LABEL_FONT_STACKED = '600 10px "SF Pro Text", -apple-system';
+  '600 12px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT_STACKED = '600 11px "SF Pro Text", -apple-system';
 
 const iconCache = new Map<string, Image>();
 
