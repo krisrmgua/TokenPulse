@@ -36,7 +36,10 @@ app.whenReady().then(async () => {
   await pause(500);
   const manifest = [];
   if (fs.existsSync(path.join(__dirname, 'screenshots/menu.cjs'))) {
-    manifest.push(await require('./screenshots/menu.cjs')(root, output));
+    const menu = await require('./screenshots/menu.cjs')(root, output);
+    const menuItems = Array.isArray(menu) ? menu : [menu];
+    manifest.push(...menuItems);
+    fs.writeFileSync(path.join(output,'menu-manifest.json'),JSON.stringify(menuItems,null,2)+'\n');
   }
   for (const shot of fixture.shots) {
     if (shot.patch) { win.webContents.send('capture:update', shot.patch); await pause(100); }

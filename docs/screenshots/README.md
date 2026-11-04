@@ -8,6 +8,12 @@ No installed app, sign-in, API key, real repository scan, market-data request, o
 
 Captured from version **0.5.49**, source revision `058831b`.
 
+
+## Menu-bar icons and views
+
+[Open the complete menu-bar gallery](../menu-bar.md), including the actual icon artwork and supported display states.
+
+
 ## Recreate
 
 From the repository root, after installing dependencies:

@@ -1,0 +1,46 @@
+{
+  "styles": [
+    "divider",
+    "rings",
+    "baseline",
+    "stack",
+    "focus",
+    "lanes",
+    "segments"
+  ],
+  "providers": [
+    "chatgpt",
+    "cursor",
+    "grokbot",
+    "openai",
+    "claude"
+  ],
+  "allowanceProviders": [
+    "chatgpt",
+    "cursor",
+    "grokbot",
+    "claude"
+  ],
+  "quotaExamples": 28,
+  "spendExamples": 8,
+  "sizes": [
+    100,
+    95,
+    90,
+    85,
+    80,
+    75,
+    70,
+    65
+  ],
+  "themedAndStandard": true,
+  "styleProofs": {
+    "divider": "016773469674794703d30d08a3aec95673120fdb790e1df1225f58641364744e",
+    "rings": "c9f335089b51aa35d1c5562d9d05f841f3dc08a13a30cb6f6533378f870669ce",
+    "baseline": "c131cb6c6f31d8d6445e6a658b59226415d724c39ebc60eb901b44bb6cae90dd",
+    "stack": "5e697ba519d9fa9e58eb74a48b885028d258990d3b40301d1cb3ef19b1d8e6b8",
+    "focus": "a557fa6a4507ae8d69da6661de7ad88f25f02b7697dcfd7b375ed392cbc7675d",
+    "lanes": "4a4d25273dd39ae89ca1d72957a4b355c9ae63aad6ee0f9933cba810db8c2d70",
+    "segments": "65fd382f1ef5b758b131ef09c08600947a25f06e5a2ce3aa12d60ba840741108"
+  }
+}

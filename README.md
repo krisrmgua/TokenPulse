@@ -7,6 +7,97 @@ It is local-first. Claude, Cursor, ChatGPT, OpenAI API, and Grok Bot are separat
 The app is Electron. The original Swift menu-bar app is still in `menubar/` (see [Legacy Swift app](#legacy-swift-app)).
 
 
+## Menu-bar previews
+
+All five providers together, using fictional values: **ChatGPT · Cursor · Grok Bot · OpenAI API · Claude**. Each provider can use its own supported layout.
+
+<a href="docs/screenshots/menu-bar-combined.png"><img src="docs/screenshots/menu-bar-combined.png" alt="All five TokenPulse providers in one menu bar" width="780" /></a>
+
+All **seven styles** are shown below. ChatGPT and Claude show separate 5-hour and weekly allowances; Cursor and Grok Bot show their single allowance. OpenAI API uses balance and spend figures, with Divider capsule or Compact stack.
+
+<a href="docs/screenshots/menu-bar.png"><img src="docs/screenshots/menu-bar.png" alt="All seven TokenPulse menu-bar styles" width="540" /></a>
+
+<details>
+<summary>Every provider, style, spend layout, appearance, size, and status example</summary>
+
+**Providers**
+
+Every provider appears: ChatGPT, Cursor, Grok Bot, OpenAI API, and Claude. OpenAI shows money rather than quota gauges.
+
+<a href="docs/screenshots/menu-bar-providers.png"><img src="docs/screenshots/menu-bar-providers.png" alt="Every provider appears: ChatGPT, Cursor, Grok Bot, OpenAI API, and Claude. OpenAI shows money rather than quota gauges." width="540" /></a>
+
+**Style Divider**
+
+Divider capsule with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.
+
+<a href="docs/screenshots/menu-bar-style-divider.png"><img src="docs/screenshots/menu-bar-style-divider.png" alt="Divider capsule with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude." width="540" /></a>
+
+**Style Rings**
+
+Twin gauges with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.
+
+<a href="docs/screenshots/menu-bar-style-rings.png"><img src="docs/screenshots/menu-bar-style-rings.png" alt="Twin gauges with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude." width="540" /></a>
+
+**Style Baseline**
+
+Baseline meters with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.
+
+<a href="docs/screenshots/menu-bar-style-baseline.png"><img src="docs/screenshots/menu-bar-style-baseline.png" alt="Baseline meters with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude." width="540" /></a>
+
+**Style Stack**
+
+Compact stack with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.
+
+<a href="docs/screenshots/menu-bar-style-stack.png"><img src="docs/screenshots/menu-bar-style-stack.png" alt="Compact stack with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude." width="540" /></a>
+
+**Style Focus**
+
+Focus capsule with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.
+
+<a href="docs/screenshots/menu-bar-style-focus.png"><img src="docs/screenshots/menu-bar-style-focus.png" alt="Focus capsule with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude." width="540" /></a>
+
+**Style Lanes**
+
+Stacked tracks with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.
+
+<a href="docs/screenshots/menu-bar-style-lanes.png"><img src="docs/screenshots/menu-bar-style-lanes.png" alt="Stacked tracks with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude." width="540" /></a>
+
+**Style Segments**
+
+Segmented lanes with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.
+
+<a href="docs/screenshots/menu-bar-style-segments.png"><img src="docs/screenshots/menu-bar-style-segments.png" alt="Segmented lanes with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude." width="540" /></a>
+
+**Spend**
+
+Both supported spend layouts for OpenAI balance and ChatGPT, Cursor, and Claude work spend. Dollar figures never use quota gauges.
+
+<a href="docs/screenshots/menu-bar-spend.png"><img src="docs/screenshots/menu-bar-spend.png" alt="Both supported spend layouts for OpenAI balance and ChatGPT, Cursor, and Claude work spend. Dollar figures never use quota gauges." width="540" /></a>
+
+**Appearance**
+
+ChatGPT and OpenAI examples with themed marks, standard marks, and capsule backgrounds switched off.
+
+<a href="docs/screenshots/menu-bar-appearance.png"><img src="docs/screenshots/menu-bar-appearance.png" alt="ChatGPT and OpenAI examples with themed marks, standard marks, and capsule backgrounds switched off." width="540" /></a>
+
+**Sizes**
+
+All eight supported menu-bar sizes, from Normal (100%) to Micro (65%), using the Compact stack style.
+
+<a href="docs/screenshots/menu-bar-sizes.png"><img src="docs/screenshots/menu-bar-sizes.png" alt="All eight supported menu-bar sizes, from Normal (100%) to Micro (65%), using the Compact stack style." width="540" /></a>
+
+**Status**
+
+Healthy, low, exhausted, and stale allowance states using production status and tint logic.
+
+<a href="docs/screenshots/menu-bar-status.png"><img src="docs/screenshots/menu-bar-status.png" alt="Healthy, low, exhausted, and stale allowance states using production status and tint logic." width="540" /></a>
+
+</details>
+
+The labeled sheets enlarge the app’s actual rendered artwork 2× for detail. The neutral backdrops are presentation surfaces, not captures of a personal desktop.
+
+[Full menu-bar gallery and regeneration instructions](docs/menu-bar.md)
+
 ## Screenshots
 
 Screenshots of the current Electron interface on macOS, using fictional projects, accounts, jobs, and values. No personal data or live credentials are used.
@@ -16,7 +107,7 @@ Screenshots of the current Electron interface on macOS, using fictional projects
 The gallery includes detail views, settings, and available actions. Click an image for the full-resolution capture.
 
 <details>
-<summary>View all 16 screenshots</summary>
+<summary>View dashboard screenshots</summary>
 
 | Menu Bar | Overview |
 | --- | --- |
