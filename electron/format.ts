@@ -75,6 +75,34 @@ export function displayDateTime(date: Date): string {
   });
 }
 
+/**
+ * Swift `ChatGPTUsageParse.displayDate` — Today/Tomorrow lead; else calendar form.
+ * e.g. `Today at 9:43 PM MST`, `Tomorrow at 1:57 AM MST`, `Nov 7, 2026 at 2:58 PM MST`.
+ */
+export function displayDate(date: Date, now: Date = new Date()): string {
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayDelta = Math.round((startDate.getTime() - startToday.getTime()) / 86_400_000);
+  const time = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+  if (dayDelta === 0) return `Today at ${time}`;
+  if (dayDelta === 1) return `Tomorrow at ${time}`;
+  const cal = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${cal} at ${time}`;
+}
+
+/** First instant of next calendar month (Swift month-end reset for work Claude). */
+export function startOfNextMonth(now: Date = new Date()): Date {
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+}
+
 /** Tray fragment for one allowance window: `64%`, or `0% Nov 9` when exhausted. */
 export function barPercent(percentLeft: number, resetAt?: Date): string {
   if (percentLeft === 0 && resetAt) return `0% ${shortDate(resetAt)}`;

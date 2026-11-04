@@ -6,7 +6,14 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { Pricing } from "./pricing";
 import { SpendLedger } from "./ledger";
-import { projectedMonthEnd, shortMoney, barMoney, barPercent } from "./format";
+import {
+  projectedMonthEnd,
+  shortMoney,
+  barMoney,
+  barPercent,
+  displayDate,
+  startOfNextMonth,
+} from "./format";
 import { parseAggregations, parsePlanUsage, parseTotalSpendUSD, cursorPersonalPercentLeft } from "./sources/cursor";
 import { parseSandUsage } from "./sources/grokbot";
 import { parseRateLimits, parseWorkUsage, workEstimatedUSD, workTodayIsPending } from "./sources/chatgpt";
@@ -42,6 +49,11 @@ test("projection and formatting", () => {
   assert.equal(barMoney(87.59), "$88");
   assert.equal(barMoney(99.9), "$100");
   assert.equal(barMoney(1234), "$1.2k");
+  const ref = new Date(2026, 10, 3, 12, 0, 0); // Nov 3, 2026
+  assert.match(displayDate(new Date(2026, 10, 3, 21, 43, 0), ref), /^Today at /);
+  assert.match(displayDate(new Date(2026, 10, 4, 1, 57, 0), ref), /^Tomorrow at /);
+  assert.match(displayDate(new Date(2026, 10, 7, 14, 58, 0), ref), /^Nov 7, 2026 at /);
+  assert.equal(startOfNextMonth(ref).getTime(), new Date(2026, 11, 1).getTime());
   assert.equal(barPercent(42), "42%");
   assert.match(barPercent(0, new Date(2026, 10, 9)), /^0% Nov 9$/);
 });

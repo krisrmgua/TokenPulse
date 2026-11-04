@@ -4,11 +4,13 @@ import { SourceError } from "./http";
 import {
   barPercent,
   dayString,
+  displayDate,
   displayDateTime,
   exactMoney,
   projectedMonthEnd,
   shortDate,
   shortMoney,
+  startOfNextMonth,
 } from "./format";
 import type { Pricing } from "./pricing";
 import type { PrefsStore } from "./prefs";
@@ -351,7 +353,23 @@ export class Engine {
     }
     if (data !== undefined && slot.fetchedAt) out.fetchedAt = new Date(slot.fetchedAt).toISOString();
     if (!out.enabled || data === undefined) out.barText = undefined;
+    if (out.enabled && out.meters.length === 0 && !out.resetNote) {
+      out.resetNote = this.defaultResetNote(out);
+    }
     return out;
+  }
+
+  /** Swift AppDelegate resetNote for spend / balance cards (no meters). */
+  private defaultResetNote(out: SourceSnapshot): string {
+    if (out.id === "openai") return "Prepaid balance has no scheduled reset.";
+    if (out.id === "claude" && out.account === "work") {
+      return `Monthly totals reset ${displayDate(startOfNextMonth())}`;
+    }
+    if (out.id === "cursor" && out.account === "work") {
+      const end = this.usable(this.cursor)?.planUsage?.billingCycleEnd;
+      if (end && end > 0) return `Billing cycle resets ${displayDate(new Date(end))}`;
+    }
+    return "Reset time not reported by provider.";
   }
 
   private claudeSnapshot(p: Prefs, refreshMs: number): SourceSnapshot {

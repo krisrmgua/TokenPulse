@@ -105,6 +105,8 @@ export interface SourceSnapshot {
   projectedUSD?: number;
   meters: Meter[];
   lines: DetailLine[];
+  /** Overview reset line under spend (Swift `resetNote`). */
+  resetNote?: string;
   /** Short tray fragment, e.g. `CU $2.10/$84`. */
   barText?: string;
   /** Where the credential comes from on this machine. */
