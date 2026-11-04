@@ -410,7 +410,7 @@ That installs `~/Applications/TokenPulse-Swift.app` (`com.kris.tokenpulse.swift`
 
 ## Version
 
-The shipping version is `package.json` → `version` (currently **0.5.51**). The panel shows it as `v0.5.51` in Options and in the footer. Bump that field before each release you push and package; Electron Builder embeds it so `app.getVersion()` matches.
+The shipping version is `package.json` → `version` (currently **0.5.52**). The panel shows it as `v0.5.52` in Options and in the footer. Bump that field before each release you push and package; Electron Builder embeds it so `app.getVersion()` matches.
 
 ## License
 

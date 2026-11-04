@@ -6,6 +6,7 @@ import { restrictFile } from "./fsSecure";
 import {
   REFRESH_CHOICES,
   SOURCE_ACCOUNTS,
+  PROVIDER_ORDER,
   SOURCE_IDS,
   menuBarScaleFromRaw,
   type OpenAIBalanceBaseline,
@@ -15,6 +16,24 @@ import {
 } from "./types";
 
 const BAR_IDS = new Set(BAR_DESIGNS.map((d) => d.id));
+const PROVIDER_SET = new Set<string>(PROVIDER_ORDER);
+
+/** Keep a saved order, drop unknown ids, and append any provider that was left out. */
+export function menuBarOrderFromRaw(raw: unknown): SourceId[] {
+  const seen = new Set<SourceId>();
+  const out: SourceId[] = [];
+  if (Array.isArray(raw)) {
+    for (const id of raw) {
+      if (typeof id !== "string" || !PROVIDER_SET.has(id) || seen.has(id as SourceId)) continue;
+      seen.add(id as SourceId);
+      out.push(id as SourceId);
+    }
+  }
+  for (const id of PROVIDER_ORDER) {
+    if (!seen.has(id)) out.push(id);
+  }
+  return out;
+}
 
 function defaultSource(id: SourceId): SourcePrefs {
   const accounts = SOURCE_ACCOUNTS[id];
@@ -50,6 +69,7 @@ export function defaultPrefs(): Prefs {
     spendColorsEnabled: true,
     pastelBarColors: true,
     sharedRingLetters: false,
+    menuBarOrder: [...PROVIDER_ORDER],
     rememberPanelPlace: false,
     notificationsEnabled: true,
     allowanceAlertsEnabled: true,
@@ -266,6 +286,9 @@ export class PrefsStore {
     if (typeof patch.sharedRingLetters === "boolean") {
       this.data.sharedRingLetters = patch.sharedRingLetters;
     }
+    if (Array.isArray(patch.menuBarOrder)) {
+      this.data.menuBarOrder = menuBarOrderFromRaw(patch.menuBarOrder);
+    }
     if (typeof patch.rememberPanelPlace === "boolean") {
       this.data.rememberPanelPlace = patch.rememberPanelPlace;
     }
@@ -372,6 +395,7 @@ export class PrefsStore {
     }
     if (typeof raw.pastelBarColors === "boolean") base.pastelBarColors = raw.pastelBarColors;
     if (typeof raw.sharedRingLetters === "boolean") base.sharedRingLetters = raw.sharedRingLetters;
+    base.menuBarOrder = menuBarOrderFromRaw(raw.menuBarOrder);
     if (typeof raw.rememberPanelPlace === "boolean") {
       base.rememberPanelPlace = raw.rememberPanelPlace;
     } else {

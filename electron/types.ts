@@ -112,6 +112,8 @@ export interface Prefs {
    * The letter replaces the label beside the ring.
    */
   sharedRingLetters: boolean;
+  /** Left-to-right menu bar order. Missing providers are appended in the default order. */
+  menuBarOrder: SourceId[];
   /** Keep last Mission route when reopening the panel (Swift rememberPanelPlace). */
   rememberPanelPlace: boolean;
   notificationsEnabled: boolean;

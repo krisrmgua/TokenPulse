@@ -32,7 +32,7 @@ import {
 } from "./sources/claudeUsage";
 import { BAR_DESIGNS } from "./barDesign";
 import { blocksFromSources } from "./statusBar";
-import { defaultPrefs, parseSwiftOpenAIBalance, PrefsStore } from "./prefs";
+import { defaultPrefs, menuBarOrderFromRaw, parseSwiftOpenAIBalance, PrefsStore } from "./prefs";
 import { classifyCredential, decodeCredential, SAFE_STORAGE_PREFIX } from "./sources/cursorAuth";
 import { isValidAdminKeyFormat, OpenAIKeyStore } from "./openaiAdmin";
 import { renderMark } from "./iconRaster";
@@ -202,6 +202,41 @@ test("fresh defaults are off and personal", () => {
   assert.equal(prefs.sources.claude.sharedPill, false);
   assert.equal(prefs.menuBarScale, 100);
   assert.equal(prefs.sharedRingLetters, false);
+  assert.deepEqual(prefs.menuBarOrder, ["chatgpt", "cursor", "grokbot", "openai", "claude"]);
+});
+
+test("menu bar order keeps known providers and fills gaps", () => {
+  assert.deepEqual(menuBarOrderFromRaw(["claude", "chatgpt", "nope", "chatgpt"]), [
+    "claude",
+    "chatgpt",
+    "cursor",
+    "grokbot",
+    "openai",
+  ]);
+  const prefs = defaultPrefs();
+  prefs.menuBarOrder = ["claude", "chatgpt", "cursor", "grokbot", "openai"];
+  prefs.sources.claude.enabled = true;
+  prefs.sources.claude.showInTray = true;
+  prefs.sources.chatgpt.enabled = true;
+  prefs.sources.chatgpt.showInTray = true;
+  const meter = { id: "weekly", label: "Weekly", percentLeft: 40 };
+  const claude = {
+    id: "claude" as const,
+    name: "Claude",
+    enabled: true,
+    showInTray: true,
+    account: "personal" as const,
+    accounts: ["personal" as const, "work" as const],
+    status: "ok" as const,
+    meters: [meter],
+    lines: [],
+    credential: "",
+  };
+  const chatgpt = { ...claude, id: "chatgpt" as const, name: "ChatGPT" };
+  assert.deepEqual(
+    blocksFromSources([chatgpt, claude], prefs).map((b) => b.id),
+    ["claude", "chatgpt"],
+  );
 });
 
 test("cursor menu bar marks the monthly allowance as M", () => {

@@ -10,6 +10,7 @@ import {
 import {
   MENU_BAR_SCALES,
   MENU_BAR_SCALE_LABELS,
+  SOURCE_NAMES,
   type AccountMode,
   type ActionResult,
   type AppState,
@@ -978,6 +979,19 @@ function optionsView(st: AppState): string {
       ${switchRow("pastel-bar", "Pastel menu-bar colors", p.pastelBarColors, !p.spendColorsEnabled)}
       ${switchRow("remember-place", "Reopen where I left off", p.rememberPanelPlace)}
     </div>
+    <div class="opt-section order-section">
+      <h3 class="sources-title">Menu bar order</h3>
+      <div class="example-bar" id="menu-order-bar" aria-label="Menu bar order">
+        ${p.menuBarOrder
+          .map((id) => {
+            const name = escapeHtml(SOURCE_NAMES[id]);
+            return `<div class="example-pill" draggable="true" data-order-id="${id}" title="${name}" aria-label="${name}">
+              ${providerMark(id, 16)}
+            </div>`;
+          })
+          .join("")}
+      </div>
+    </div>
     <div class="opt-section sources-block">
       <h3 class="sources-title">Sources</h3>
       <div class="source-chips">${sourceChips}</div>
@@ -1349,6 +1363,65 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
 }
 
 // ---------- wiring ----------
+
+let orderDragId: SourceId | null = null;
+let orderDropped = false;
+
+function menuOrderBar(): HTMLElement | null {
+  return document.getElementById("menu-order-bar");
+}
+
+document.addEventListener("dragstart", (e) => {
+  const pill = (e.target as HTMLElement).closest<HTMLElement>(".example-pill");
+  const bar = menuOrderBar();
+  const id = pill?.dataset.orderId as SourceId | undefined;
+  if (!pill || !bar || !id || !bar.contains(pill)) return;
+  orderDragId = id;
+  orderDropped = false;
+  pill.classList.add("dragging");
+  e.dataTransfer?.setData("text/plain", id);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+});
+
+document.addEventListener("dragover", (e) => {
+  const bar = menuOrderBar();
+  if (!bar || !orderDragId || !(e.target instanceof Node) || !bar.contains(e.target)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+  const moving = bar.querySelector<HTMLElement>(`[data-order-id="${CSS.escape(orderDragId)}"]`);
+  if (!moving) return;
+  let before: HTMLElement | null = null;
+  for (const pill of bar.querySelectorAll<HTMLElement>(".example-pill")) {
+    if (pill === moving) continue;
+    const rect = pill.getBoundingClientRect();
+    if (e.clientX < rect.left + rect.width / 2) {
+      before = pill;
+      break;
+    }
+  }
+  if (moving.nextElementSibling !== before) bar.insertBefore(moving, before);
+});
+
+document.addEventListener("drop", (e) => {
+  const bar = menuOrderBar();
+  if (!bar || !orderDragId || !state || !(e.target instanceof Node) || !bar.contains(e.target)) return;
+  e.preventDefault();
+  orderDropped = true;
+  const order = [...bar.querySelectorAll<HTMLElement>(".example-pill")]
+    .map((pill) => pill.dataset.orderId as SourceId)
+    .filter((id): id is SourceId => Boolean(id));
+  const current = state.prefs.menuBarOrder;
+  orderDragId = null;
+  if (order.length === current.length && order.every((id, i) => id === current[i])) return;
+  void api.setPrefs({ menuBarOrder: order }).then(() => load(true));
+});
+
+document.addEventListener("dragend", () => {
+  orderDragId = null;
+  document.querySelectorAll(".example-pill.dragging").forEach((node) => node.classList.remove("dragging"));
+  if (!orderDropped && route === "options" && state) render(true);
+  orderDropped = false;
+});
 
 document.addEventListener("click", (e) => {
   const target = (e.target as HTMLElement).closest<HTMLElement>("[data-act]");
