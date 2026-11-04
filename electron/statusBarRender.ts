@@ -142,6 +142,63 @@ function roundRect(
 }
 
 /**
+ * Draw `text` so its real painted ink is vertically centered in [chromeTop, chromeTop+chromeH).
+ * Canvas fontBoundingBox / textBaseline="middle" both leave SF digits optically high.
+ */
+function fillTextVCenter(
+  ctx: SKRSContext2D,
+  text: string,
+  x: number,
+  chromeTop: number,
+  chromeH: number,
+  font: string,
+  fillStyle: string,
+): void {
+  ctx.font = font;
+  ctx.textBaseline = "top";
+  const w = Math.ceil(ctx.measureText(text).width) + 4;
+  const h = Math.ceil(chromeH) + 8;
+  const off = createCanvas(Math.max(1, w), Math.max(1, h));
+  const o = off.getContext("2d");
+  o.font = font;
+  o.textBaseline = "top";
+  o.fillStyle = fillStyle;
+  const probeY = 4;
+  o.fillText(text, 2, probeY);
+  const { data, width: ow, height: oh } = o.getImageData(0, 0, off.width, off.height);
+  let minY = oh;
+  let maxY = -1;
+  for (let y = 0; y < oh; y++) {
+    for (let i = y * ow * 4; i < (y + 1) * ow * 4; i += 4) {
+      if (data[i + 3] < 16) continue;
+      if (data[i] + data[i + 1] + data[i + 2] < 30) continue;
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxY < minY) {
+    ctx.fillStyle = fillStyle;
+    const approx = Number(font.match(/(\d+)px/)?.[1] ?? 12);
+    ctx.fillText(text, x, chromeTop + Math.round((chromeH - approx) / 2));
+    return;
+  }
+  const inkH = maxY - minY + 1;
+  // SF digit mass sits above the ink-box midpoint; +2px (@2x) matches the icon center.
+  const destTop = chromeTop + Math.round((chromeH - inkH) / 2) + 2;
+  ctx.drawImage(
+    off,
+    0,
+    minY,
+    ow,
+    inkH,
+    Math.round(x - 2),
+    destTop,
+    ow,
+    inkH,
+  );
+}
+
+/**
  * Paint Swift-matching status capsules at 1× CSS points into a 2× bitmap.
  * Call `warmStatusBarIcons` first so provider marks are available.
  */
@@ -260,8 +317,9 @@ export function renderStatusBarPng(
       }
 
       if (b.design === "divider" && mi > 0) {
+        // Same optical +2px as fillTextVCenter so the pipe tracks the digits.
         ctx.fillStyle = TRACK;
-        ctx.fillRect(pt(cursor - 7), pt(y0 + 5), pt(1), pt(12));
+        ctx.fillRect(pt(cursor - 7), pt(y0 + 5) + 2, pt(1), pt(12));
       }
 
       const labelW = measure(ctx, m.label, labelFontPx) / S;
@@ -298,8 +356,8 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Baseline keeps text high for the under-meter; divider / rings / focus
-      // center the D/M row in the 22pt capsule (Swift optical mid).
+      // Baseline keeps text high for the under-meter. Divider / rings / focus
+      // blit ink-centered — SF + textBaseline middle still reads high in the tray.
       if (b.design === "baseline") {
         const rowY = y0 + 3;
         ctx.textBaseline = "top";
@@ -310,15 +368,18 @@ export function renderStatusBarPng(
         ctx.font = valueFontPx;
         ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY - 2));
       } else {
-        const midY = y0 + bh / 2;
-        ctx.textBaseline = "middle";
-        ctx.fillStyle = LABEL;
-        ctx.font = labelFontPx;
-        ctx.fillText(m.label, pt(cursor), pt(midY));
-        ctx.fillStyle = color;
-        ctx.font = valueFontPx;
-        ctx.fillText(m.value, pt(cursor + labelW + 4), pt(midY));
-        ctx.textBaseline = "top";
+        const topPx = pt(y0);
+        const hPx = pt(bh);
+        fillTextVCenter(ctx, m.label, pt(cursor), topPx, hPx, labelFontPx, LABEL);
+        fillTextVCenter(
+          ctx,
+          m.value,
+          pt(cursor + labelW + 4),
+          topPx,
+          hPx,
+          valueFontPx,
+          color,
+        );
       }
 
       if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
