@@ -683,7 +683,7 @@ function notificationsView(st: AppState): string {
       <div class="settings-sep"></div>
       <div class="settings-row status-row">
         <span class="settings-muted">${escapeHtml(os.label)}</span>
-        <span class="settings-status">${escapeHtml(os.detail)}</span>
+        <span class="settings-status ${os.detail === "enabled" ? "ok" : "bad"}">${escapeHtml(os.detail)}</span>
       </div>
       <div class="settings-row action-row stacked">
         <button type="button" class="mission-btn" data-act="test-notification">Send test notification</button>
