@@ -1,9 +1,9 @@
 import AppKit
 
 enum StatusBarDesign: String, CaseIterable {
-    // Keep the approved numbering stable, even though not every concept ships.
+    // Display order only. Stored prefs use the case name, so renumbering does not change a saved style.
     case divider, rings, baseline, stack, focus, lanes, segments
-    var number: Int { switch self { case .divider: return 1; case .rings: return 2; case .baseline: return 3; case .stack: return 4; case .focus: return 6; case .lanes: return 7; case .segments: return 9 } }
+    var number: Int { switch self { case .divider: return 1; case .rings: return 2; case .baseline: return 3; case .stack: return 4; case .focus: return 5; case .lanes: return 6; case .segments: return 7 } }
     var name: String { switch self { case .divider: return "Divider capsule"; case .rings: return "Twin gauges"; case .baseline: return "Baseline meters"; case .stack: return "Compact stack"; case .focus: return "Focus capsule"; case .lanes: return "Stacked tracks"; case .segments: return "Segmented lanes" } }
     var title: String { "\(number) · \(name)" }
     var stacked: Bool { self == .stack || self == .lanes || self == .segments }

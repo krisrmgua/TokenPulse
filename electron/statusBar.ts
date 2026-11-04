@@ -1,4 +1,4 @@
-import { nativeImage } from "electron";
+import type { NativeImage } from "electron";
 import { isStacked } from "./barDesign";
 import { barMoney } from "./format";
 import { tintBalanceUSD, tintRemainingPct, tintSpendUSD } from "./spendTint";
@@ -68,21 +68,21 @@ function metricsFor(
   }
 
   const metrics: StatusMetric[] = [];
-  if (s.id === "openai") {
+  if (s.id === "openai" && sp.showBalanceInBar) {
     const balLine = s.lines.find((l) => /balance/i.test(l.label));
-    if (balLine) {
-      const n = Number(balLine.value.replace(/[^0-9.]/g, ""));
-      metrics.push({
-        label: "B",
-        value: Number.isFinite(n) ? barMoney(n) : balLine.value.replace(/\s/g, ""),
-        color: Number.isFinite(n)
-          ? tintBalanceUSD(n, colorOpts)
-          : tintSpendUSD(0, s.id, colorOpts, "month"),
-      });
-    }
+    const n = balLine ? moneyNumber(balLine.value) : undefined;
+    metrics.push({
+      label: "B",
+      value: n === undefined ? "—" : barMoney(n),
+      color:
+        n === undefined
+          ? [153, 173, 199]
+          : tintBalanceUSD(n, colorOpts),
+    });
   }
-  // Compact stack is both D and M; divider may hide one via prefs.
-  const forceBoth = isStacked(sp.barDesign);
+  // Compact stack shows every spend figure unless this source can hide them.
+  // OpenAI can hide D, M, or B on any style.
+  const forceBoth = isStacked(sp.barDesign) && s.id !== "openai";
   if (s.todayUSD !== undefined && (forceBoth || sp.showDailyInBar)) {
     metrics.push({
       label: "D",
@@ -100,11 +100,17 @@ function metricsFor(
   return metrics;
 }
 
+function moneyNumber(raw: string): number | undefined {
+  const n = Number(raw.replace(/[$,\s]/g, ""));
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /** Compose distinct per-provider capsules as one Retina PNG for the tray. */
 export async function createStatusBarImage(
   blocks: StatusBlock[],
   prefs: Prefs,
-): Promise<Electron.NativeImage> {
+): Promise<NativeImage> {
+  const { nativeImage } = await import("electron");
   if (blocks.length === 0) return nativeImage.createEmpty();
   await warmStatusBarIcons(
     blocks.map((b) => b.id),

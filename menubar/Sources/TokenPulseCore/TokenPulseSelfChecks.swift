@@ -760,7 +760,7 @@ enum TokenPulseSelfChecks {
         presentation.path = [originalDisplayID]
         check("Mission resolves the selected nested screen after refresh", presentation.currentTitle == "Display")
 
-        check("menu-bar style IDs preserve the seven selected concepts", StatusBarDesign.allCases.map(\.number) == [1, 2, 3, 4, 6, 7, 9])
+        check("menu-bar styles number in order", StatusBarDesign.allCases.map(\.number) == [1, 2, 3, 4, 5, 6, 7])
         check("work spend only offers Divider and Compact stack",
               StatusBarDesign.options(spendOnly: true).map(\.number) == [1, 4])
         check("work spend keeps Compact stack",

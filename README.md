@@ -122,7 +122,7 @@ The **Today / Month / Proj. eom** chips in the tab bar appear once there is work
 
 Combined work spend is Claude (local transcripts) + Cursor in **Work spend** mode + ChatGPT in **Work credits** mode. OpenAI API spend shows on its own card and in the per-source table, but is not added to the work total.
 
-Claude and Cursor start on. ChatGPT, OpenAI API, and Grok Bot start off. **Reset to defaults** clears source and refresh choices and keeps the saved OpenAI key.
+A new install leaves every provider off. Claude, Cursor, ChatGPT, and Grok Bot start on **Personal**. OpenAI API has no personal mode; it stays org spend. **Reset to defaults** clears source and refresh choices and keeps the saved OpenAI key.
 
 A failed remote fetch keeps the last good value. After about two and a half poll intervals the figures fade. Data older than 30 minutes is dropped.
 
@@ -134,7 +134,8 @@ TokenPulse has no account of its own. Each source uses a login you already have,
 
 | Source | What you need | Notes |
 |---|---|---|
-| Claude | Claude Code transcripts on this machine | Scans `~/.claude/projects` (also `$CLAUDE_CONFIG_DIR/projects`). Prices them with `pricing.json`. No Anthropic key is stored |
+| Claude personal | Claude Code signed in on this machine | 5-hour and weekly allowance from `claude` `/usage`, percent left. No Anthropic key is stored |
+| Claude work | Claude Code transcripts on this machine | Switch the account to **Work spend**. Scans `~/.claude/projects` and prices them with `pricing.json` |
 | Cursor | Cursor signed in on this machine | Reads the Cursor login from its `state.vscdb`. Work mode shows your Dashboard spend; personal mode shows the included allowance as percent left |
 | Grok Bot | The same Cursor login | Weekly Sand allowance, as percent left |
 | ChatGPT personal | [Codex CLI](https://chatgpt.com/codex) signed in to ChatGPT | 5-hour and weekly allowance, percent left |
@@ -227,7 +228,7 @@ npm run dev
 
 ## Legacy Swift app
 
-`menubar/` is the original SwiftPM menu-bar app. It has a few things the Electron port does not yet: menu-bar capsule styles, themed logos, Claude personal `/usage`, the optional spend proxy, notifications, and the `--*-check` command-line probes. Build it with:
+`menubar/` is the original SwiftPM menu-bar app. It has a few things the Electron port does not yet: menu-bar capsule styles, themed logos, the optional spend proxy, notifications, and the `--*-check` command-line probes. Build it with:
 
 ```bash
 cd menubar

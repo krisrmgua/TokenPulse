@@ -285,19 +285,32 @@ function metricsHtml(items: [string, string, string?][]): string {
     .join("")}</div>`;
 }
 
+function openaiBalanceUSD(s: SourceSnapshot): number | undefined {
+  const bal = s.lines.find((l) => l.label === "Estimated prepaid balance");
+  if (!bal) return undefined;
+  const n = Number(bal.value.replace(/[$,]/g, ""));
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function spendHeadline(s: SourceSnapshot, prefs: Prefs): string {
-  // OpenAI overview shows the prepaid balance alone (Swift `headline`).
   if (s.id === "openai") {
-    const bal = s.lines.find((l) => l.label === "Estimated prepaid balance");
-    if (bal) {
-      const n = Number(bal.value.replace(/[$,]/g, ""));
-      const tint =
-        Number.isFinite(n) && prefs.spendColorsEnabled
-          ? rgbCss(tintBalanceUSD(n, appTintPrefs(prefs)))
-          : "";
-      const shown = Number.isFinite(n) ? compactMoney(n) : bal.value;
-      return `<div class="spend-headline"${tint ? ` style="color:${tint}"` : ""}>${escapeHtml(shown)}</div>`;
+    const n = openaiBalanceUSD(s);
+    const bits: string[] = [];
+    if (s.todayUSD !== undefined) bits.push(`Today ${compactMoney(s.todayUSD)}`);
+    if (s.monthUSD !== undefined) bits.push(`Month ${compactMoney(s.monthUSD)}`);
+    if (n === undefined && bits.length === 0) {
+      return `<div class="spend-headline muted">No current data</div>`;
     }
+    const tint =
+      n !== undefined && prefs.spendColorsEnabled
+        ? rgbCss(tintBalanceUSD(n, appTintPrefs(prefs)))
+        : "";
+    const balance =
+      n === undefined
+        ? ""
+        : `<div class="spend-balance"${tint ? ` style="color:${tint}"` : ""}>Balance ${escapeHtml(compactMoney(n))}</div>`;
+    const rest = bits.length > 0 ? `<div class="spend-sub">${escapeHtml(bits.join(" · "))}</div>` : "";
+    return `<div class="spend-headline">${balance}${rest}</div>`;
   }
   if (s.todayUSD === undefined && s.monthUSD === undefined) {
     return `<div class="spend-headline muted">No current data</div>`;
@@ -593,8 +606,9 @@ function providerOptionsPanel(st: AppState, id: SourceId, s: SourceSnapshot): st
     )}
   </div>`);
 
-  // Compact stack is D+M by design — no per-line toggles. Divider can hide one.
-  if (spendStyleOnly && !isStacked(sp.barDesign)) {
+  // Compact stack is D+M by design for work spend. OpenAI can hide D, M, or B.
+  const showSpendToggles = id === "openai" || (spendStyleOnly && !isStacked(sp.barDesign));
+  if (showSpendToggles) {
     rows.push(
       switchRow(
         "daily-bar",
@@ -611,6 +625,17 @@ function providerOptionsPanel(st: AppState, id: SourceId, s: SourceSnapshot): st
         `data-id="${id}"`,
       ),
     );
+    if (id === "openai") {
+      rows.push(
+        switchRow(
+          "balance-bar",
+          "Show balance in menu bar",
+          sp.showBalanceInBar,
+          false,
+          `data-id="${id}"`,
+        ),
+      );
+    }
   }
 
   const extras: string[] = [];
@@ -669,7 +694,16 @@ function sourceView(st: AppState, id: SourceId): string {
     <span class="status-line ${s.status}">${STATUS_LABEL[s.status]}${s.fetchedAt ? ` · ${escapeHtml(clockTime(s.fetchedAt))}` : ""}</span>
   </div>`);
   if (s.enabled) {
-    const figs: [string, string][] = [];
+    const figs: [string, string, string?][] = [];
+    if (s.id === "openai") {
+      const n = openaiBalanceUSD(s);
+      if (n !== undefined) {
+        const tint = st.prefs.spendColorsEnabled
+          ? rgbCss(tintBalanceUSD(n, appTintPrefs(st.prefs)))
+          : undefined;
+        figs.push(["Balance", money(n), tint]);
+      }
+    }
     if (s.todayUSD !== undefined) figs.push(["Today", money(s.todayUSD)]);
     if (s.monthUSD !== undefined) figs.push(["Month to date", money(s.monthUSD)]);
     if (figs.length > 0) parts.push(metricsHtml(figs));
@@ -1220,6 +1254,9 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
       return;
     case "monthly-bar":
       if (id) await setSource(id, { showMonthlyInBar: (target as HTMLInputElement).checked });
+      return;
+    case "balance-bar":
+      if (id) await setSource(id, { showBalanceInBar: (target as HTMLInputElement).checked });
       return;
     case "bar-design":
       if (id) await setSource(id, { barDesign: target.value as BarDesign });

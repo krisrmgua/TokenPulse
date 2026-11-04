@@ -30,6 +30,14 @@ import {
 } from "./types";
 import { ClaudeTranscriptScanner, claudeProjectRoots, type ClaudeRollup } from "./sources/claude";
 import {
+  claudeResetDate,
+  fetchClaudeUsage,
+  findClaudeExecutable,
+  personalWindowLabel,
+  type ClaudeUsageSnapshot,
+  type ClaudeUsageWindow,
+} from "./sources/claudeUsage";
+import {
   CursorClient,
   cursorPersonalPercentLeft,
   type CursorSpendSnapshot,
@@ -76,6 +84,21 @@ function errorMessage(err: unknown): string {
   return `Unexpected error: ${(err as Error)?.message ?? String(err)}`;
 }
 
+function claudeMeter(id: string, label: string, window: ClaudeUsageWindow, fetchedAt: Date): Meter {
+  const reset = claudeResetDate(window.resetDescription, fetchedAt);
+  return {
+    id,
+    label,
+    percentLeft: window.percentLeft,
+    resetAt: reset?.toISOString(),
+  };
+}
+
+function claudeResetLine(window: ClaudeUsageWindow, fetchedAt: Date): string {
+  const reset = claudeResetDate(window.resetDescription, fetchedAt);
+  return reset ? displayDate(reset, fetchedAt) : window.resetDescription;
+}
+
 export interface EngineMeta {
   dataDir: string;
   version: string;
@@ -86,6 +109,7 @@ export class Engine {
   private readonly claudeScanner: ClaudeTranscriptScanner;
   private readonly cursorClient = new CursorClient();
   private claude: Slot<ClaudeRollup> = {};
+  private claudePersonal: Slot<ClaudeUsageSnapshot> = {};
   private cursor: Slot<CursorSpendSnapshot> = {};
   private grokbot: Slot<GrokBotSnapshot> = {};
   private chatgptPersonal: Slot<ChatGPTPersonalSnapshot> = {};
@@ -139,7 +163,10 @@ export class Engine {
       this.cursorClient.reset();
     }
     if (id === "grokbot") this.grokbot = {};
-    if (id === "claude") this.claude = {};
+    if (id === "claude") {
+      this.claude = {};
+      this.claudePersonal = {};
+    }
   }
 
   /** Today's reported OpenAI cost, used to anchor a newly entered balance. */
@@ -182,7 +209,11 @@ export class Engine {
     const tasks: Promise<void>[] = [];
 
     if (s.claude.enabled) {
-      tasks.push(this.run(this.claude, 0, force, () => this.claudeScanner.rollup(new Date())));
+      if (s.claude.account === "personal") {
+        tasks.push(this.run(this.claudePersonal, REMOTE_MIN_MS, force, () => fetchClaudeUsage()));
+      } else {
+        tasks.push(this.run(this.claude, 0, force, () => this.claudeScanner.rollup(new Date())));
+      }
     }
 
     if (s.cursor.enabled || s.grokbot.enabled) {
@@ -259,7 +290,8 @@ export class Engine {
 
   private combined(p: Prefs): CombinedSpend | null {
     const s = p.sources;
-    const claude = s.claude.enabled ? this.usable(this.claude) : undefined;
+    const claude =
+      s.claude.enabled && s.claude.account === "work" ? this.usable(this.claude) : undefined;
     const cursor =
       s.cursor.enabled && s.cursor.account === "work" ? this.usable(this.cursor) : undefined;
     const chat =
@@ -374,6 +406,7 @@ export class Engine {
 
   private claudeSnapshot(p: Prefs, refreshMs: number): SourceSnapshot {
     const out = this.base("claude", p);
+    if (out.account === "personal") return this.claudePersonalSnapshot(out, refreshMs);
     const roots = claudeProjectRoots();
     out.credential =
       roots.length > 0
@@ -401,6 +434,36 @@ export class Engine {
       }
     }
     return this.finish(out, this.claude, r, 0, refreshMs);
+  }
+
+  private claudePersonalSnapshot(out: SourceSnapshot, refreshMs: number): SourceSnapshot {
+    const claude = findClaudeExecutable();
+    out.credential = claude
+      ? `Claude CLI /usage (${tildify(claude)})`
+      : "Claude CLI not found. Install Claude Code and run claude once to /login.";
+    const usage = out.enabled ? this.usable(this.claudePersonal, false) : undefined;
+    if (usage) {
+      const bits: string[] = [];
+      const fetchedAt = new Date(usage.fetchedAt);
+      if (usage.session) {
+        out.meters.push(claudeMeter("session", "5-hour", usage.session, fetchedAt));
+        bits.push(`5H ${personalWindowLabel(usage.session)}`);
+        out.lines.push({
+          label: "5-hour resets",
+          value: claudeResetLine(usage.session, fetchedAt),
+        });
+      }
+      if (usage.weekly) {
+        out.meters.push(claudeMeter("weekly", "Weekly", usage.weekly, fetchedAt));
+        bits.push(`W ${personalWindowLabel(usage.weekly)}`);
+        out.lines.push({
+          label: "Weekly resets",
+          value: claudeResetLine(usage.weekly, fetchedAt),
+        });
+      }
+      if (bits.length > 0) out.barText = `CL ${bits.join(" ")}`;
+    }
+    return this.finish(out, this.claudePersonal, usage, REMOTE_MIN_MS, refreshMs);
   }
 
   private cursorCredential(): string {
