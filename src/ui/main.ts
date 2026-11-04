@@ -737,11 +737,12 @@ function scoreboardView(st: AppState): string {
 }
 
 function alertsView(): string {
+  // Match Swift MissionControl.alerts: empty note + footer note (no stub copy).
   return `${noticeHtml()}
     <h2 class="page-title">Alerts</h2>
-    <div class="card stub empty-alerts">
-      <div class="stub-title">No advisories this session.</div>
-      <p class="muted">Allowance and model-spend advisories show here when they fire.</p>
+    <div class="alerts-stack">
+      <div class="note-panel">No advisories this session.</div>
+      <div class="note-panel">Shown at most once per day above the configured Opus spend share. macOS controls system banner appearance.</div>
     </div>`;
 }
 
