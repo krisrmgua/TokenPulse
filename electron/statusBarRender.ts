@@ -299,17 +299,29 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Match Swift StatusBarArtwork y: rowY = y0+4, label +1, value +0 (top-origin).
-      const rowY = y0 + (b.design === "baseline" ? 3 : 4);
-      const labelOffset = b.design === "baseline" ? -1 : 1;
-      const valueOffset = b.design === "baseline" ? -2 : 0;
-      ctx.textBaseline = "top";
-      ctx.fillStyle = LABEL;
-      ctx.font = labelFontPx;
-      ctx.fillText(m.label, pt(cursor), pt(rowY + labelOffset));
-      ctx.fillStyle = color;
-      ctx.font = valueFontPx;
-      ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY + valueOffset));
+      // Baseline stays top-anchored for the under-meter. Divider / rings / focus:
+      // canvas SF at Swift's top y (y0+4) sits ~5px high vs the icon — use middle
+      // +1pt so digit mass matches the mark center.
+      if (b.design === "baseline") {
+        const rowY = y0 + 3;
+        ctx.textBaseline = "top";
+        ctx.fillStyle = LABEL;
+        ctx.font = labelFontPx;
+        ctx.fillText(m.label, pt(cursor), pt(rowY - 1));
+        ctx.fillStyle = color;
+        ctx.font = valueFontPx;
+        ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY - 2));
+      } else {
+        const midY = y0 + bh / 2 + 1;
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = LABEL;
+        ctx.font = labelFontPx;
+        ctx.fillText(m.label, pt(cursor), pt(midY));
+        ctx.fillStyle = color;
+        ctx.font = valueFontPx;
+        ctx.fillText(m.value, pt(cursor + labelW + 4), pt(midY));
+        ctx.textBaseline = "top";
+      }
 
 
       if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
