@@ -253,6 +253,22 @@ function accountSelectHtml(s: SourceSnapshot): string {
   return `<select data-act="account" data-id="${s.id}" aria-label="${escapeHtml(s.name)} account">${opts}</select>`;
 }
 
+/** Cyan Mission-style menu control (Account / Menu bar style). */
+function settingsMenuSelect(
+  act: string,
+  id: SourceId,
+  aria: string,
+  options: { value: string; label: string; selected: boolean }[],
+): string {
+  const opts = options
+    .map(
+      (o) =>
+        `<option value="${escapeHtml(o.value)}" ${o.selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
+    )
+    .join("");
+  return `<select class="settings-menu" data-act="${act}" data-id="${id}" aria-label="${escapeHtml(aria)}">${opts}</select>`;
+}
+
 function rowsHtml(rows: [string, string][]): string {
   if (rows.length === 0) return "";
   return `<div class="table">${rows
@@ -529,36 +545,76 @@ function spendView(st: AppState): string {
   return parts.join("");
 }
 
-/** Per-provider prefs that used to live on a separate options page. */
-function providerOptionsSections(st: AppState, id: SourceId, s: SourceSnapshot): string {
+/** Swift-style provider prefs: switches + cyan menus (not checkboxes/radios). */
+function providerOptionsPanel(st: AppState, id: SourceId, s: SourceSnapshot): string {
   const sp = st.prefs.sources[id];
   const spendStyleOnly =
     id === "openai" ||
     ((id === "cursor" || id === "claude" || id === "chatgpt") && s.account === "work");
   const allowed = barDesignsFor(spendStyleOnly);
-  const parts: string[] = [];
+  const rows: string[] = [
+    switchRow("enable", "Enable", s.enabled, false, `data-id="${id}"`),
+    switchRow(
+      "tray",
+      "Show in menu bar",
+      s.showInTray,
+      !s.enabled,
+      `data-id="${id}"`,
+    ),
+  ];
 
-  if (spendStyleOnly) {
-    parts.push(`<div class="opt-section"><h3>Menu bar figures</h3><div class="card">
-      <label class="toggle"><input type="checkbox" data-act="daily-bar" data-id="${id}" ${sp.showDailyInBar ? "checked" : ""} /> Show daily in menu bar</label>
-      <label class="toggle"><input type="checkbox" data-act="monthly-bar" data-id="${id}" ${sp.showMonthlyInBar ? "checked" : ""} /> Show monthly in menu bar</label>
-    </div></div>`);
+  if (s.accounts.length > 1) {
+    rows.push(`<div class="settings-row">
+      <span class="settings-label">Account</span>
+      ${settingsMenuSelect(
+        "account",
+        id,
+        `${s.name} account`,
+        s.accounts.map((a) => ({
+          value: a,
+          label: accountLabel(s.id, a),
+          selected: a === s.account,
+        })),
+      )}
+    </div>`);
   }
 
-  const designRows = allowed
-    .map(
-      (d) => `<label class="toggle design-choice">
-        <input type="radio" name="bar-design-${id}" data-act="bar-design" data-id="${id}" value="${d.id}" ${sp.barDesign === d.id ? "checked" : ""} />
-        ${escapeHtml(`${d.number} · ${d.name}`)}
-      </label>`,
-    )
-    .join("");
-  parts.push(
-    `<div class="opt-section"><h3>Menu bar style</h3><div class="card design-list">${designRows}</div></div>`,
-  );
+  rows.push(`<div class="settings-row">
+    <span class="settings-label">Menu bar style</span>
+    ${settingsMenuSelect(
+      "bar-design",
+      id,
+      "Menu bar style",
+      allowed.map((d) => ({
+        value: d.id,
+        label: `${d.number} · ${d.name}`,
+        selected: sp.barDesign === d.id,
+      })),
+    )}
+  </div>`);
 
+  if (spendStyleOnly) {
+    rows.push(
+      switchRow(
+        "daily-bar",
+        "Show daily in menu bar",
+        sp.showDailyInBar,
+        false,
+        `data-id="${id}"`,
+      ),
+      switchRow(
+        "monthly-bar",
+        "Show monthly in menu bar",
+        sp.showMonthlyInBar,
+        false,
+        `data-id="${id}"`,
+      ),
+    );
+  }
+
+  const extras: string[] = [];
   if (id === "cursor" && s.account === "personal") {
-    parts.push(`<div class="opt-section"><h3>Pro allowance</h3><div class="card">
+    extras.push(`<div class="opt-section"><h3>Pro allowance</h3><div class="card">
       <div class="form-row">
         <input type="number" id="opt-allowance" min="1" step="1" value="${st.prefs.cursorPersonalAllowanceUSD}" />
         <button class="btn" data-act="save-allowance">Save</button>
@@ -580,7 +636,7 @@ function providerOptionsSections(st: AppState, id: SourceId, s: SourceSnapshot):
         <div class="muted">Organization Admin key from OpenAI Platform.
           <button class="link" data-act="open-url" data-url="https://platform.openai.com/settings/organization/admin-keys">Open OpenAI Platform</button></div>`;
     const bal = st.prefs.openAIBalance;
-    parts.push(`<div class="opt-section"><h3>Admin API</h3><div class="card">
+    extras.push(`<div class="opt-section"><h3>Admin API</h3><div class="card">
       ${keyBlock}
       <div class="form-row">
         <span>Current prepaid balance</span>
@@ -592,10 +648,10 @@ function providerOptionsSections(st: AppState, id: SourceId, s: SourceSnapshot):
   }
 
   if (id === "grokbot") {
-    parts.push(`<div class="note">Needs Cursor login (same account as Grok Bot).</div>`);
+    extras.push(`<div class="note">Needs Cursor login (same account as Grok Bot).</div>`);
   }
 
-  return parts.join("");
+  return `<div class="settings-panel provider-opts">${rows.join("")}</div>${extras.join("")}`;
 }
 
 function sourceView(st: AppState, id: SourceId): string {
@@ -611,7 +667,7 @@ function sourceView(st: AppState, id: SourceId): string {
     <span class="spacer"></span>
     <span class="status-line ${s.status}">${STATUS_LABEL[s.status]}${s.fetchedAt ? ` · ${escapeHtml(clockTime(s.fetchedAt))}` : ""}</span>
   </div>`);
-  parts.push(`<div class="form-row">${togglesHtml(s)}<span class="spacer"></span>${accountSelectHtml(s)}</div>`);
+  parts.push(providerOptionsPanel(st, id, s));
   if (s.credential) parts.push(`<div class="note">${escapeHtml(s.credential)}</div>`);
   if (s.enabled) {
     const figs: [string, string][] = [];
@@ -630,7 +686,6 @@ function sourceView(st: AppState, id: SourceId): string {
   } else {
     parts.push(`<div class="muted">Off. Turn on Enable to start reading it.</div>`);
   }
-  parts.push(providerOptionsSections(st, id, s));
   return parts.join("");
 }
 
