@@ -40,7 +40,8 @@ function metricsFor(
 ): StatusMetric[] {
   const colorOpts = {
     spendColorsEnabled: prefs.spendColorsEnabled,
-    pastelBarColors: prefs.pastelBarColors,
+    // Menu bar always pastel; in-app uses bright (see UI tint helpers).
+    pastelBarColors: true,
     themedProviderLogos: prefs.themedProviderLogos,
   };
 

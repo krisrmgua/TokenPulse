@@ -143,6 +143,11 @@ function rgbCss(rgb: [number, number, number]): string {
   return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
 }
 
+/** In-app spend/remaining tints — always bright; tray forces pastel separately. */
+function appTintPrefs(prefs: Prefs): Prefs {
+  return { ...prefs, pastelBarColors: false };
+}
+
 function meterShortLabel(label: string): string {
   if (label === "5-hour" || label === "5-hour window") return "5H";
   if (label === "Weekly" || label === "Weekly window") return "Weekly";
@@ -210,7 +215,7 @@ function noticeHtml(): string {
 
 function meterHtml(m: Meter, prefs: Prefs): string {
   const pct = Math.max(0, Math.min(100, Math.round(m.percentLeft)));
-  const tint = rgbCss(tintRemainingPct(pct, prefs));
+  const tint = rgbCss(tintRemainingPct(pct, appTintPrefs(prefs)));
   const reset = m.resetAt ? displayReset(m.resetAt) : "Reset time unavailable";
   const fill = Math.max(0, Math.min(100, pct));
   return `<div class="meter">
@@ -270,7 +275,7 @@ function spendHeadline(s: SourceSnapshot, prefs: Prefs): string {
       const n = Number(bal.value.replace(/[$,]/g, ""));
       const tint =
         Number.isFinite(n) && prefs.spendColorsEnabled
-          ? rgbCss(tintBalanceUSD(n, prefs))
+          ? rgbCss(tintBalanceUSD(n, appTintPrefs(prefs)))
           : "";
       const shown = Number.isFinite(n) ? compactMoney(n) : bal.value;
       return `<div class="spend-headline"${tint ? ` style="color:${tint}"` : ""}>${escapeHtml(shown)}</div>`;
@@ -285,7 +290,14 @@ function spendHeadline(s: SourceSnapshot, prefs: Prefs): string {
   const tintUsd = s.monthUSD ?? s.todayUSD ?? 0;
   const tint =
     prefs.spendColorsEnabled && (POLICY_CAP[s.id] ?? 0) > 0
-      ? rgbCss(tintSpendUSD(tintUsd, s.id, prefs, s.monthUSD !== undefined ? "month" : "day"))
+      ? rgbCss(
+          tintSpendUSD(
+            tintUsd,
+            s.id,
+            appTintPrefs(prefs),
+            s.monthUSD !== undefined ? "month" : "day",
+          ),
+        )
       : "";
   return `<div class="spend-headline"${tint ? ` style="color:${tint}"` : ""}>${escapeHtml(bits.join(" · "))}</div>`;
 }
@@ -482,9 +494,12 @@ function spendView(st: AppState): string {
   } else {
     const prefs = st.prefs;
     const sources = st.sources;
-    const dayTint = rgbCss(tintCombinedSpendUSD(st.combined.todayUSD, "day", sources, prefs));
-    const monthTint = rgbCss(tintCombinedSpendUSD(st.combined.monthUSD, "month", sources, prefs));
-    const projTint = rgbCss(tintCombinedSpendUSD(st.combined.projectedUSD, "month", sources, prefs));
+    const tintPrefs = appTintPrefs(prefs);
+    const dayTint = rgbCss(tintCombinedSpendUSD(st.combined.todayUSD, "day", sources, tintPrefs));
+    const monthTint = rgbCss(tintCombinedSpendUSD(st.combined.monthUSD, "month", sources, tintPrefs));
+    const projTint = rgbCss(
+      tintCombinedSpendUSD(st.combined.projectedUSD, "month", sources, tintPrefs),
+    );
     parts.push(
       metricsHtml([
         ["Today", money(st.combined.todayUSD), dayTint],
@@ -629,7 +644,7 @@ function optionsView(st: AppState): string {
     <label class="toggle"><input type="checkbox" data-act="themed-logos" ${p.themedProviderLogos ? "checked" : ""} /> Themed provider logos</label>
     <label class="toggle"><input type="checkbox" data-act="dark-bar" ${p.darkBarBackground ? "checked" : ""} /> Dark menu-bar background</label>
     <label class="toggle"><input type="checkbox" data-act="spend-colors" ${p.spendColorsEnabled ? "checked" : ""} /> Spend colors</label>
-    <label class="toggle"><input type="checkbox" data-act="pastel-bar" ${p.pastelBarColors ? "checked" : ""} ${p.spendColorsEnabled ? "" : "disabled"} /> Pastel menu-bar colors</label>
+    <div class="muted" style="margin:4px 0 0 22px">Pastel in the menu bar · bright colors in the panel</div>
     <label class="toggle"><input type="checkbox" data-act="login" ${p.openAtLogin ? "checked" : ""} /> Open at login</label>
   </div></div>`);
 
@@ -785,10 +800,10 @@ function renderChips(st: AppState): void {
     return;
   }
   const active = route === "spend" ? " active" : "";
-  const prefs = st.prefs;
+  const tintPrefs = appTintPrefs(st.prefs);
   const sources = st.sources;
   const chip = (k: string, v: number, kind: "day" | "month") => {
-    const color = rgbCss(tintCombinedSpendUSD(v, kind, sources, prefs));
+    const color = rgbCss(tintCombinedSpendUSD(v, kind, sources, tintPrefs));
     return `<button class="chip${active}" data-act="go" data-route="spend"><span class="k">${k}</span><span class="v" style="color:${color}">${money(v)}</span></button>`;
   };
   el.chips.innerHTML =
@@ -1019,10 +1034,6 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
       return;
     case "spend-colors":
       await api.setPrefs({ spendColorsEnabled: (target as HTMLInputElement).checked });
-      await load(true);
-      return;
-    case "pastel-bar":
-      await api.setPrefs({ pastelBarColors: (target as HTMLInputElement).checked });
       await load(true);
       return;
     case "daily-bar":

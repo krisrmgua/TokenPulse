@@ -13,17 +13,18 @@ const TRACK = "rgb(59, 82, 99)";
 const LABEL = "rgb(153, 173, 199)";
 
 /**
- * Stacked values use Menlo so `$` / digits share one advance and both rows
- * rasterize the same (AppleSystemUIFontMonospacedDigit was drifting per line).
- * Divider / single-line styles match Swift StatusBarArtwork:
- *   value = monospacedDigitSystemFont(11, .semibold)
- *   label = systemFont(10, .semibold)
+ * Match Swift StatusBarArtwork `$` (short stroke). Do not list Helvetica Neue /
+ * system-ui / Menlo — napi-rs was resolving those and painting a full-bar `$`.
+ *   value = monospacedDigitSystemFont(..., .semibold)
+ *   label = systemFont(..., .semibold)
  */
-const VALUE_FONT_STACKED = '700 11px Menlo, "SF Mono", ui-monospace, monospace';
-const LABEL_FONT_STACKED = '600 10px -apple-system, "SF Pro Text", system-ui, sans-serif';
-const VALUE_FONT =
-  '600 11px ".AppleSystemUIFontMonospacedDigit", -apple-system, "SF Pro Text", system-ui, sans-serif';
-const LABEL_FONT = '600 10px -apple-system, "SF Pro Text", system-ui, sans-serif';
+const VALUE_SF =
+  '600 11px ".AppleSystemUIFontMonospacedDigit", -apple-system, "SF Pro Text"';
+const LABEL_SF = '600 10px -apple-system, "SF Pro Text"';
+const VALUE_FONT_STACKED = VALUE_SF;
+const LABEL_FONT_STACKED = LABEL_SF;
+const VALUE_FONT = VALUE_SF;
+const LABEL_FONT = LABEL_SF;
 
 const iconCache = new Map<string, Image>();
 
