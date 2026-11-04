@@ -1,4 +1,5 @@
 import { nativeImage } from "electron";
+import { isStacked } from "./barDesign";
 import { barMoney } from "./format";
 import { tintBalanceUSD, tintRemainingPct, tintSpendUSD } from "./spendTint";
 import { renderStatusBarPng, warmStatusBarIcons } from "./statusBarRender";
@@ -80,14 +81,16 @@ function metricsFor(
       });
     }
   }
-  if (s.todayUSD !== undefined && sp.showDailyInBar) {
+  // Compact stack is both D and M; divider may hide one via prefs.
+  const forceBoth = isStacked(sp.barDesign);
+  if (s.todayUSD !== undefined && (forceBoth || sp.showDailyInBar)) {
     metrics.push({
       label: "D",
       value: barMoney(s.todayUSD),
       color: tintSpendUSD(s.todayUSD, s.id, colorOpts, "day"),
     });
   }
-  if (s.monthUSD !== undefined && sp.showMonthlyInBar) {
+  if (s.monthUSD !== undefined && (forceBoth || sp.showMonthlyInBar)) {
     metrics.push({
       label: "M",
       value: barMoney(s.monthUSD),
