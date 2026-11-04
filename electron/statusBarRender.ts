@@ -13,12 +13,15 @@ const TRACK = "rgb(59, 82, 99)";
 const LABEL = "rgb(153, 173, 199)";
 
 /**
- * Stacked values use a real mono face so `$` / digits share one advance and both
- * rows rasterize the same (AppleSystemUIFontMonospacedDigit was drifting per line).
+ * Stacked values use Menlo so `$` / digits share one advance and both rows
+ * rasterize the same (AppleSystemUIFontMonospacedDigit was drifting per line).
+ * Divider / single-line styles match Swift: monospaced-digit system font,
+ * semibold — not Menlo.
  */
 const VALUE_FONT_STACKED = '700 11px Menlo, "SF Mono", ui-monospace, monospace';
 const LABEL_FONT_STACKED = '600 10px -apple-system, "SF Pro Text", system-ui, sans-serif';
-const VALUE_FONT = '700 12px Menlo, "SF Mono", ui-monospace, monospace';
+const VALUE_FONT =
+  '600 12px ".AppleSystemUIFontMonospacedDigit", -apple-system, "SF Pro Text", system-ui, sans-serif';
 const LABEL_FONT = '600 11px -apple-system, "SF Pro Text", system-ui, sans-serif';
 
 const iconCache = new Map<string, Image>();
@@ -295,15 +298,28 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      const rowY = y0 + (b.design === "baseline" ? 3 : 5);
-      const labelOffset = b.design === "baseline" ? -1 : 1;
-      const valueOffset = b.design === "baseline" ? -2 : 0;
-      ctx.fillStyle = LABEL;
-      ctx.font = labelFontPx;
-      ctx.fillText(m.label, pt(cursor), pt(rowY + labelOffset));
-      ctx.fillStyle = color;
-      ctx.font = valueFontPx;
-      ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY + valueOffset));
+      // Baseline keeps text high for the under-meter; divider / rings / focus
+      // center the D/M row in the 22pt capsule (Swift optical mid).
+      if (b.design === "baseline") {
+        const rowY = y0 + 3;
+        ctx.textBaseline = "top";
+        ctx.fillStyle = LABEL;
+        ctx.font = labelFontPx;
+        ctx.fillText(m.label, pt(cursor), pt(rowY - 1));
+        ctx.fillStyle = color;
+        ctx.font = valueFontPx;
+        ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY - 2));
+      } else {
+        const midY = y0 + bh / 2;
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = LABEL;
+        ctx.font = labelFontPx;
+        ctx.fillText(m.label, pt(cursor), pt(midY));
+        ctx.fillStyle = color;
+        ctx.font = valueFontPx;
+        ctx.fillText(m.value, pt(cursor + labelW + 4), pt(midY));
+        ctx.textBaseline = "top";
+      }
 
       if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
         const my = y0 + 18;
