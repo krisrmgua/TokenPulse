@@ -32,6 +32,7 @@ import { defaultPrefs, parseSwiftOpenAIBalance } from "./prefs";
 import { classifyCredential, decodeCredential, SAFE_STORAGE_PREFIX } from "./sources/cursorAuth";
 import { isValidAdminKeyFormat, OpenAIKeyStore } from "./openaiAdmin";
 import { renderMark } from "./iconRaster";
+import { renderStatusBarPng } from "./statusBarRender";
 import { tintCombinedSpendUSD } from "./spendTint";
 
 test("pricing resolves overrides, families, fallback", () => {
@@ -346,6 +347,45 @@ test("openai admin key file is owner-only", () => {
   }
   store.delete();
   assert.equal(new OpenAIKeyStore(dir).isConfigured(), false);
+});
+
+test("divider stays text and baseline keeps the underline meter", () => {
+  const metric = {
+    label: "5H",
+    value: "80%",
+    percent: 80,
+    color: [88, 210, 236] as [number, number, number],
+  };
+  const prefs = { darkBarBackground: true, themedProviderLogos: false };
+  const block = {
+    id: "claude" as const,
+    metrics: [metric, { ...metric, label: "W", value: "40%", percent: 40 }],
+    stale: false,
+    allowanceEmpty: false,
+  };
+  const divider = renderStatusBarPng([{ ...block, design: "divider" }], prefs).png;
+  const baseline = renderStatusBarPng([{ ...block, design: "baseline" }], prefs).png;
+  assert.notDeepEqual(divider, baseline);
+});
+
+test("segmented lanes cut the meter into dashes", () => {
+  const metric = {
+    label: "5H",
+    value: "80%",
+    percent: 80,
+    color: [88, 210, 236] as [number, number, number],
+  };
+  const prefs = { darkBarBackground: true, themedProviderLogos: false };
+  const block = {
+    id: "claude" as const,
+    metrics: [metric, { ...metric, label: "W", value: "40%", percent: 40 }],
+    stale: false,
+    allowanceEmpty: false,
+  };
+  const lanes = renderStatusBarPng([{ ...block, design: "lanes" }], prefs).png;
+  const segments = renderStatusBarPng([{ ...block, design: "segments" }], prefs).png;
+  assert.ok(lanes.length > 8 && segments.length > 8);
+  assert.notDeepEqual(lanes, segments);
 });
 
 test("icon rasterizer emits a PNG", () => {
