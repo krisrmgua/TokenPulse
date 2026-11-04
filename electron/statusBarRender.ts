@@ -13,15 +13,15 @@ const TRACK = "rgb(59, 82, 99)";
 const LABEL = "rgb(153, 173, 199)";
 
 /**
- * Tray type. Keep Helvetica/system-ui/Menlo out (full-bar `$`).
- * Stacked = bump a little; divider (single-line) = bump more.
+ * Canvas fallback when Swift `--bar-render` is unavailable.
+ * Mirrors StatusBarArtwork with `enlarged: true` (Prefs.increaseBarSize).
  */
 const VALUE_FONT =
-  '600 14px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
-const LABEL_FONT = '600 13px "SF Pro Text", -apple-system';
-const VALUE_FONT_STACKED =
   '600 12px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
-const LABEL_FONT_STACKED = '600 12px "SF Pro Text", -apple-system';
+const LABEL_FONT = '600 11px "SF Pro Text", -apple-system';
+const VALUE_FONT_STACKED =
+  '600 11px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT_STACKED = '600 10px "SF Pro Text", -apple-system';
 
 const iconCache = new Map<string, Image>();
 
@@ -30,10 +30,7 @@ function rgb(c: [number, number, number], alpha = 1): string {
 }
 
 function chromeHeight(design: BarDesign): number {
-  // Divider needs 24pt once values are 14pt; stacked already 24.
-  return isStacked(design) || design === "baseline" || design === "divider"
-    ? 24
-    : 22;
+  return isStacked(design) || design === "baseline" ? 24 : 22;
 }
 
 function fontsFor(design: BarDesign): { value: string; label: string } {
@@ -156,9 +153,9 @@ export function renderStatusBarPng(
   }
 
   const scaleFactor = 2;
-  // Larger than Swift's 14pt mark so the cube reads at menu-bar scale.
-  const iconSize = 18;
-  const pad = 5;
+  // Swift StatusBarArtwork enlarged: icon 14, pad 7.
+  const iconSize = 14;
+  const pad = 7;
   const gap = 5;
   const height = Math.max(...blocks.map((b) => chromeHeight(b.design)));
 
@@ -231,18 +228,14 @@ export function renderStatusBarPng(
       const color = rgb(m.color);
 
       if (isStacked(b.design)) {
-        // Same 12pt label+value; pitch 12; shared alphabetic baseline.
-        const rowPitch = b.metrics.length <= 1 ? 0 : 12;
-        const rowBody = 12;
-        const stackH = (b.metrics.length - 1) * rowPitch + rowBody;
-        const stackTop = y0 + (bh - stackH) / 2;
-        const rowY = b.metrics.length === 1 ? y0 + (bh - rowBody) / 2 : stackTop + mi * rowPitch;
-        const baseline = rowY + 10;
-        ctx.textBaseline = "alphabetic";
+        // Swift: rowY = y0 + i*11+1; value at rowY-1 (top-origin).
+        const rowY =
+          b.metrics.length === 1 ? y0 + 5 : y0 + mi * 11 + 1;
+        ctx.textBaseline = "top";
         ctx.fillStyle = LABEL;
         ctx.font = labelFontPx;
-        ctx.fillText(m.label, pt(cursor), pt(baseline));
-        let valueX = cursor + labelColW + 4;
+        ctx.fillText(m.label, pt(cursor), pt(rowY));
+        let valueX = cursor + labelColW + 5;
         if ((b.design === "lanes" || b.design === "segments") && m.percent !== undefined) {
           const mw = 54;
           const my = rowY + 4;
@@ -259,14 +252,13 @@ export function renderStatusBarPng(
         }
         ctx.fillStyle = color;
         ctx.font = valueFontPx;
-        ctx.fillText(m.value, pt(valueX), pt(baseline));
-        ctx.textBaseline = "top";
+        ctx.fillText(m.value, pt(valueX), pt(rowY - 1));
         return;
       }
 
       if (b.design === "divider" && mi > 0) {
         ctx.fillStyle = TRACK;
-        ctx.fillRect(pt(cursor - 7), pt(y0 + 5), pt(1), pt(14));
+        ctx.fillRect(pt(cursor - 7), pt(y0 + 5), pt(1), pt(12));
       }
 
       const labelW = measure(ctx, m.label, labelFontPx) / S;
@@ -303,28 +295,17 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Shared alphabetic baseline so D/M and $ amounts sit on one line.
-      // ~68% down the chrome centers 12pt caps beside the 18pt mark.
-      if (b.design === "baseline") {
-        const rowY = y0 + 3;
-        ctx.textBaseline = "top";
-        ctx.fillStyle = LABEL;
-        ctx.font = labelFontPx;
-        ctx.fillText(m.label, pt(cursor), pt(rowY - 1));
-        ctx.fillStyle = color;
-        ctx.font = valueFontPx;
-        ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY - 2));
-      } else {
-        const baselineY = y0 + Math.round(bh * 0.68);
-        ctx.textBaseline = "alphabetic";
-        ctx.fillStyle = LABEL;
-        ctx.font = labelFontPx;
-        ctx.fillText(m.label, pt(cursor), pt(baselineY));
-        ctx.fillStyle = color;
-        ctx.font = valueFontPx;
-        ctx.fillText(m.value, pt(cursor + labelW + 4), pt(baselineY));
-        ctx.textBaseline = "top";
-      }
+      // Swift top-origin: rowY = y0+4; label +1, value +0.
+      const rowY = y0 + (b.design === "baseline" ? 3 : 4);
+      const labelOffset = b.design === "baseline" ? -1 : 1;
+      const valueOffset = b.design === "baseline" ? -2 : 0;
+      ctx.textBaseline = "top";
+      ctx.fillStyle = LABEL;
+      ctx.font = labelFontPx;
+      ctx.fillText(m.label, pt(cursor), pt(rowY + labelOffset));
+      ctx.fillStyle = color;
+      ctx.font = valueFontPx;
+      ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY + valueOffset));
 
 
       if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
