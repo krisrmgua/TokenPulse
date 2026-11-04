@@ -33,6 +33,7 @@ import { classifyCredential, decodeCredential, SAFE_STORAGE_PREFIX } from "./sou
 import { isValidAdminKeyFormat, OpenAIKeyStore } from "./openaiAdmin";
 import { renderMark } from "./iconRaster";
 import { renderStatusBarPng } from "./statusBarRender";
+import { menuBarScaleFromRaw } from "./types";
 import { tintCombinedSpendUSD } from "./spendTint";
 
 test("pricing resolves overrides, families, fallback", () => {
@@ -194,6 +195,7 @@ test("fresh defaults are off and personal", () => {
   assert.equal(prefs.sources.grokbot.account, "personal");
   assert.equal(prefs.sources.openai.account, "work");
   assert.equal(prefs.sources.openai.showBalanceInBar, true);
+  assert.equal(prefs.menuBarScale, 100);
 });
 
 test("swift openai balance baseline copies into electron prefs", () => {
@@ -347,6 +349,40 @@ test("openai admin key file is owner-only", () => {
   }
   store.delete();
   assert.equal(new OpenAIKeyStore(dir).isConfigured(), false);
+});
+
+test("menu bar size steps from normal to micro, including compact stack", () => {
+  assert.equal(menuBarScaleFromRaw(undefined, false), 100);
+  assert.equal(menuBarScaleFromRaw(undefined, true), 70);
+  assert.equal(menuBarScaleFromRaw(65, true), 65);
+  assert.equal(menuBarScaleFromRaw(40, false), 100);
+  const metric = {
+    label: "5H",
+    value: "80%",
+    percent: 80,
+    color: [88, 210, 236] as [number, number, number],
+  };
+  const base = { darkBarBackground: true, themedProviderLogos: false, menuBarScale: 100 as const };
+  const block = {
+    id: "claude" as const,
+    metrics: [metric],
+    stale: false,
+    allowanceEmpty: false,
+    design: "divider" as const,
+  };
+  const full = renderStatusBarPng([block], base);
+  const slight = renderStatusBarPng([block], { ...base, menuBarScale: 95 });
+  const micro = renderStatusBarPng([block], { ...base, menuBarScale: 65 });
+  assert.ok(slight.height < full.height);
+  assert.ok(slight.width < full.width);
+  assert.ok(micro.height < full.height * 0.75);
+  assert.ok(micro.width < full.width * 0.8);
+  assert.ok(micro.height < slight.height);
+  const stack = { ...block, design: "stack" as const };
+  const stackFull = renderStatusBarPng([stack], base);
+  const stackMicro = renderStatusBarPng([stack], { ...base, menuBarScale: 65 });
+  assert.ok(stackMicro.height < stackFull.height * 0.75);
+  assert.ok(stackMicro.width < stackFull.width * 0.8);
 });
 
 test("divider stays text and baseline keeps the underline meter", () => {

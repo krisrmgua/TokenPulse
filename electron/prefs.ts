@@ -7,6 +7,7 @@ import {
   REFRESH_CHOICES,
   SOURCE_ACCOUNTS,
   SOURCE_IDS,
+  menuBarScaleFromRaw,
   type OpenAIBalanceBaseline,
   type Prefs,
   type SourceId,
@@ -44,6 +45,7 @@ export function defaultPrefs(): Prefs {
     openAtLogin: false,
     themedProviderLogos: false,
     darkBarBackground: true,
+    menuBarScale: 100,
     spendColorsEnabled: true,
     pastelBarColors: true,
     rememberPanelPlace: false,
@@ -251,6 +253,9 @@ export class PrefsStore {
     if (typeof patch.darkBarBackground === "boolean") {
       this.data.darkBarBackground = patch.darkBarBackground;
     }
+    if (typeof patch.menuBarScale === "number") {
+      this.data.menuBarScale = menuBarScaleFromRaw(patch.menuBarScale, false);
+    }
     if (typeof patch.spendColorsEnabled === "boolean") {
       this.data.spendColorsEnabled = patch.spendColorsEnabled;
     }
@@ -357,6 +362,10 @@ export class PrefsStore {
       base.themedProviderLogos = raw.themedProviderLogos;
     }
     if (typeof raw.darkBarBackground === "boolean") base.darkBarBackground = raw.darkBarBackground;
+    base.menuBarScale = menuBarScaleFromRaw(
+      raw.menuBarScale,
+      (raw as { compactMenuBar?: boolean }).compactMenuBar,
+    );
     if (typeof raw.spendColorsEnabled === "boolean") {
       base.spendColorsEnabled = raw.spendColorsEnabled;
     }

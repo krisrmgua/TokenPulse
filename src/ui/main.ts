@@ -7,17 +7,19 @@ import {
   tintRemainingPct,
   tintSpendUSD,
 } from "../../electron/spendTint";
-import type {
-  AccountMode,
-  ActionResult,
-  AppState,
-  ChartPoint,
-  Meter,
-  Prefs,
-  SourceId,
-  SourcePrefs,
-  SourceSnapshot,
-  SourceStatus,
+import {
+  MENU_BAR_SCALES,
+  MENU_BAR_SCALE_LABELS,
+  type AccountMode,
+  type ActionResult,
+  type AppState,
+  type ChartPoint,
+  type Meter,
+  type Prefs,
+  type SourceId,
+  type SourcePrefs,
+  type SourceSnapshot,
+  type SourceStatus,
 } from "../../electron/types";
 
 interface TokenPulseApi {
@@ -887,6 +889,13 @@ function optionsView(st: AppState): string {
       ${switchRow("themed-logos", "Themed provider logos", p.themedProviderLogos)}
       ${switchRow("spend-colors", "Spend colors", p.spendColorsEnabled)}
       ${switchRow("dark-bar", "Dark menu-bar background", p.darkBarBackground)}
+      <div class="settings-row">
+        <span class="settings-label">Menu bar size</span>
+        <select class="settings-menu" data-act="menu-bar-scale" aria-label="Menu bar size">${MENU_BAR_SCALES.map(
+          (n) =>
+            `<option value="${n}" ${n === p.menuBarScale ? "selected" : ""}>${escapeHtml(MENU_BAR_SCALE_LABELS[n])} — ${n}%</option>`,
+        ).join("")}</select>
+      </div>
       ${switchRow("pastel-bar", "Pastel menu-bar colors", p.pastelBarColors, !p.spendColorsEnabled)}
       ${switchRow("remember-place", "Reopen where I left off", p.rememberPanelPlace)}
     </div>
@@ -894,7 +903,7 @@ function optionsView(st: AppState): string {
       <h3 class="sources-title">Sources</h3>
       <div class="source-chips">${sourceChips}</div>
     </div>
-    <div class="note-panel">Pastel requires spend colors. Efficiency uses local Claude Code sessions in personal or work mode.</div>
+    <div class="note-panel">Pastel requires spend colors. Menu bar size scales every style, including Compact stack, and tightens the space inside each pill. Efficiency uses local Claude Code sessions in personal or work mode.</div>
     <div class="opt-actions">
       <button type="button" class="mission-btn" data-act="reset">${resetArmed ? "Click again to reset" : "Reset to defaults…"}</button>
       <button type="button" class="mission-btn" data-act="open-data">Open data folder</button>
@@ -1209,6 +1218,10 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
       return;
     case "dark-bar":
       await api.setPrefs({ darkBarBackground: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
+    case "menu-bar-scale":
+      await api.setPrefs({ menuBarScale: Number(target.value) as Prefs["menuBarScale"] });
       await load(true);
       return;
     case "spend-colors":

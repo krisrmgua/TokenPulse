@@ -59,6 +59,28 @@ export interface OpenAIBalanceBaseline {
   spendAlreadyReportedUSD: number;
 }
 
+export const MENU_BAR_SCALES = [100, 95, 90, 85, 80, 75, 70, 65] as const;
+export type MenuBarScale = (typeof MENU_BAR_SCALES)[number];
+
+export const MENU_BAR_SCALE_LABELS: Record<MenuBarScale, string> = {
+  100: "Normal",
+  95: "Smaller",
+  90: "Small",
+  85: "Compact",
+  80: "Tight",
+  75: "Tiny",
+  70: "Mini",
+  65: "Micro",
+};
+
+export function menuBarScaleFromRaw(scale: unknown, legacyCompact: unknown): MenuBarScale {
+  if (typeof scale === "number" && (MENU_BAR_SCALES as readonly number[]).includes(scale)) {
+    return scale as MenuBarScale;
+  }
+  // The old switch was a 70% shrink.
+  return legacyCompact === true ? 70 : 100;
+}
+
 export interface Prefs {
   version: 1;
   sources: Record<SourceId, SourcePrefs>;
@@ -72,6 +94,11 @@ export interface Prefs {
   themedProviderLogos: boolean;
   /** Draw navy capsules behind each provider block. */
   darkBarBackground: boolean;
+  /**
+   * Menu-bar size as a percent of Normal, including Compact stack.
+   * 100, 95, 90, 85, 80, 75, 70, or 65.
+   */
+  menuBarScale: MenuBarScale;
   /** Tint spend / remaining figures by threshold. */
   spendColorsEnabled: boolean;
   /** Soften hot colors in the menu bar. */
