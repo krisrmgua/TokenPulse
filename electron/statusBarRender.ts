@@ -278,6 +278,13 @@ export function renderStatusBarPng(
             roundRect(ctx, pt(valueX), pt(my), pt(mw * frac), pt(4), pt(2));
             ctx.fill();
           }
+          // Swift segments: ten slots, nine capsule-colored ticks so the bar reads as dashes.
+          if (b.design === "segments") {
+            ctx.fillStyle = PANEL;
+            for (let n = 1; n < 10; n++) {
+              ctx.fillRect(pt(valueX + (n * mw) / 10 - 0.7), pt(my), Math.max(1, pt(1.4)), pt(4));
+            }
+          }
           valueX += 60;
         }
         ctx.fillStyle = color;
@@ -326,7 +333,8 @@ export function renderStatusBarPng(
       }
 
       // Top-origin; 16/15 in 28pt — 5 was high, 8 was low; land in between with the icon.
-      const rowY = y0 + (b.design === "baseline" ? 4 : 6.5);
+      // Baseline text sits lower so it meets the underline meter.
+      const rowY = y0 + (b.design === "baseline" ? 8 : 6.5);
       const labelOffset = b.design === "baseline" ? -1 : 1;
       const valueOffset = b.design === "baseline" ? -2 : 0.5;
       ctx.textBaseline = "top";
@@ -338,7 +346,8 @@ export function renderStatusBarPng(
       ctx.fillText(m.value, pt(cursor + labelW + lvGap), pt(rowY + valueOffset));
 
 
-      if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
+      // Baseline is the underline meter. Divider stays text plus the vertical rule.
+      if (b.design === "baseline" && m.percent !== undefined) {
         const my = y0 + 22;
         const meterW = labelW + lvGap + valueW;
         ctx.fillStyle = TRACK;
