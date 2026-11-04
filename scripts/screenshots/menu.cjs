@@ -10,8 +10,7 @@ module.exports = async (root, output) => {
   const quotas = ['chatgpt','cursor','grokbot','claude'];
   const ids = ['chatgpt','cursor','grokbot','openai','claude'];
   renderer.setArtworkRoot(path.join(root,'menubar/Artwork'));
-  await renderer.warmStatusBarIcons(ids,true);
-  await renderer.warmStatusBarIcons(ids,false);
+  await renderer.warmStatusBarIcons(ids);
   const source = (id,work=false) => ({ id, enabled:true, showInTray:true, status:'ok',
     meters: work || id==='openai' ? [] : id==='chatgpt' || id==='claude'
       ? [{id:'session',label:'5-hour',percentLeft:id==='claude'?64:78},{id:'weekly',label:'Weekly',percentLeft:id==='claude'?85:42}]
@@ -20,13 +19,14 @@ module.exports = async (root, output) => {
     ...(work || id==='openai' ? {todayUSD:2.40,monthUSD:18.60}:{}),
   });
   const render = (sources,design,patch={}) => {
-    const prefs=defaultPrefs();Object.assign(prefs,{themedProviderLogos:true},patch);
+    const prefs=defaultPrefs();Object.assign(prefs,patch);
     for (const id of ids) Object.assign(prefs.sources[id],{enabled:true,showInTray:true,barDesign:design,sharedPill:false});
     return renderer.renderStatusBarPng(renderer.blocksFromSources(sources,prefs),prefs).png;
   };
+  if(ids.some(id=>defaultPrefs().sources[id].sharedPill!==false)) throw new Error('Shared pill default changed; review documentation');
   const items=[];
   const styleProofs={};
-  const mixedPrefs=defaultPrefs();mixedPrefs.themedProviderLogos=true;
+  const mixedPrefs=defaultPrefs();
   const mixedStyles={chatgpt:'divider',cursor:'rings',grokbot:'baseline',openai:'stack',claude:'lanes'};
   for(const id of ids)Object.assign(mixedPrefs.sources[id],{enabled:true,showInTray:true,barDesign:mixedStyles[id],sharedPill:false});
   const mixed=renderer.renderStatusBarPng(renderer.blocksFromSources(ids.map(id=>source(id)),mixedPrefs),mixedPrefs);
@@ -34,8 +34,8 @@ module.exports = async (root, output) => {
   const {nativeImage}=require('electron');
   items.push({file:'menu-bar-combined.png',caption:'One combined menu bar with ChatGPT, Cursor, Grok Bot, OpenAI API, and Claude, each using its own supported style.',size:nativeImage.createFromBuffer(mixed.png).getSize()});
   const save = async (file,title,rows,caption) => items.push(await board(output,file,title,rows,caption));
-  const shared = (sources,{themed=false,optOut=[],letters=false}={}) => {
-    const prefs=defaultPrefs();Object.assign(prefs,{themedProviderLogos:themed,sharedRingLetters:letters});
+  const shared = (sources,{optOut=[],letters=false}={}) => {
+    const prefs=defaultPrefs();Object.assign(prefs,{sharedRingLetters:letters});
     for(const id of ids)Object.assign(prefs.sources[id],{enabled:true,showInTray:true,sharedPill:!optOut.includes(id),barDesign:'lanes'});
     const blocks=renderer.blocksFromSources(sources,prefs);
     if(blocks.filter(block=>block.sharedPill).length!==sources.length-optOut.length)throw new Error('Shared provider participation mismatch');
@@ -49,9 +49,9 @@ module.exports = async (root, output) => {
   items.unshift({file:'menu-bar-shared-pill.png',caption:'One shared pill containing ChatGPT, Cursor, and Grok Bot, with fictional remaining allowances and standard provider marks.',size:nativeImage.createFromBuffer(compactPng).getSize()});
   await save('menu-bar-shared-options.png','TokenPulse · single combined pill',[
     {label:'Compact example · three providers reporting a single allowance',png:compactPng},
-    {label:'All five providers · allowance rings and OpenAI money figures',png:shared(ids.map(id=>source(id)),{themed:true})},
-    {label:'Mixed mode · Claude opts out and keeps its own Stacked tracks capsule',png:shared(ids.map(id=>source(id)),{themed:true,optOut:['claude']})},
-    {label:'Optional ring letters enabled · all five providers',png:shared(ids.map(id=>source(id)),{themed:true,letters:true})},
+    {label:'All five providers · allowance rings and OpenAI money figures',png:shared(ids.map(id=>source(id)))},
+    {label:'Mixed mode · Claude opts out and keeps its own Stacked tracks capsule',png:shared(ids.map(id=>source(id)),{optOut:['claude']})},
+    {label:'Optional ring letters enabled · all five providers',png:shared(ids.map(id=>source(id)),{letters:true})},
   ],'Shared-pill examples: compact standard marks, all five providers, per-provider opt-out, and optional ring letters. All data is synthetic.');
 
   await save('menu-bar.png','TokenPulse · every menu-bar style',BAR_DESIGNS.map((style,i) => {
@@ -74,10 +74,9 @@ module.exports = async (root, output) => {
   }))),'Both supported spend layouts for OpenAI balance and ChatGPT, Cursor, and Claude work spend. Dollar figures never use quota gauges.');
   const samples = ['chatgpt','openai'].map(id=>source(id));
   await save('menu-bar-appearance.png','TokenPulse · appearance choices',[
-    {label:'Themed provider marks · capsule background',png:render(samples,'divider')},
-    {label:'Standard provider marks · capsule background',png:render(samples,'divider',{themedProviderLogos:false})},
-    {label:'Themed provider marks · capsule background off',png:render(samples,'divider',{darkBarBackground:false})},
-  ],'ChatGPT and OpenAI examples with themed marks, standard marks, and capsule backgrounds switched off.');
+    {label:'Current monochrome provider marks · capsule background',png:render(samples,'divider')},
+    {label:'Current monochrome provider marks · capsule background off',png:render(samples,'divider',{darkBarBackground:false})},
+  ],'ChatGPT and OpenAI using the current monochrome marks, with capsule backgrounds on and off.');
   await save('menu-bar-sizes.png','TokenPulse · every menu-bar size',MENU_BAR_SCALES.map(scale=>({label:`${MENU_BAR_SCALE_LABELS[scale]} · ${scale}%`,png:render([source('chatgpt'),source('claude')],'stack',{menuBarScale:scale})})),
     'All eight supported menu-bar sizes, from Normal (100%) to Micro (65%), using the Compact stack style.');
   const normal=source('chatgpt'), low=source('claude');low.meters[0].percentLeft=10;low.meters[1].percentLeft=5;
@@ -90,7 +89,7 @@ module.exports = async (root, output) => {
   ],'Healthy, low, exhausted, and stale allowance states using production status and tint logic.');
   const coverage={styles:BAR_DESIGNS.map(s=>s.id),providers:ids,allowanceProviders:quotas,
     quotaExamples:BAR_DESIGNS.length*quotas.length,spendExamples:BAR_DESIGNS.filter(s=>s.spendOk).length*4,
-    sizes:[...MENU_BAR_SCALES],themedAndStandard:true,sharedPill:true,sharedPillExamples:4,styleProofs};
+    sizes:[...MENU_BAR_SCALES],providerArtwork:"monochrome",sharedPill:true,sharedPillExamples:4,styleProofs};
   if(coverage.styles.length!==7 || coverage.providers.length!==5 || coverage.quotaExamples!==28 || coverage.spendExamples!==8) throw new Error('Incomplete menu-bar coverage');
   fs.writeFileSync(path.join(output,'menu-coverage.json'),JSON.stringify(coverage,null,2)+'\n');
   return items;

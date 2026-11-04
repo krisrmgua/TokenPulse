@@ -33,16 +33,16 @@
     70,
     65
   ],
-  "themedAndStandard": true,
+  "providerArtwork": "monochrome",
   "sharedPill": true,
   "sharedPillExamples": 4,
   "styleProofs": {
-    "divider": "dbd9a2ca7d465e20c1d1c667e3b90f7b7a17b4f99143bc0cea424a500bfd3bb9",
-    "rings": "ac1fbe6aaf568a441fd7be5b10855b9b5a975c5cea39705ecf7185ce6628ce7f",
-    "baseline": "a6468161b6edba2e25bc5109e36acde4e27eecf84da84c1621d5c84e359237eb",
-    "stack": "6f0c94e8ba2af118f6667fabf09d52e9ae1ce75acbf34716ffd4a65ed2c6b0d1",
-    "focus": "036586f9dca7dc5f6526a7e99702c873b55d471044ee109e22c8316617d8410d",
-    "lanes": "d54d5387d9e32434245ed6ff5621791fb2b3c0983e1881028b559db8ef9ebe99",
-    "segments": "44c6c136e0c29f4deb1987d305abff59ff1a54ec862e668ce023cae34b35a2d7"
+    "divider": "17bcdda9d577c3899604c52491f1528e45bfd0102ee20747e28e0321733da5c6",
+    "rings": "8e212167b9d0cb355bef32701db726576ed0d7a95497ee7fb4f766a124db5542",
+    "baseline": "bcb3a1f717518e58e23e1473a71331bf9e6f17dbc7d60b207c6ae041ede2be12",
+    "stack": "a38ec87c78cd44b848ec29e20676dce497fa737ce4bc3a167f2122500eeb2280",
+    "focus": "0e915948079bbd591f3f798671b172884fbdbc3f6c2a0e263dfa514a4fd7e778",
+    "lanes": "9cf8f0649cbb823bbca5e91a2ff336a9d5fbbfc02e8d7f44ff45e69c7b764fcd",
+    "segments": "f67208cd2e4d9d2e7a8432dfec46e390c117869d7789c46488c8e24cb7ae3c3d"
   }
 }

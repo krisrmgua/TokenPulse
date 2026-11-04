@@ -11,7 +11,7 @@ The app is Electron. The original Swift menu-bar app is still in `menubar/` (see
 
 ### Single combined pill
 
-**Shared pill** joins participating providers inside one capsule. It is enabled by default for each provider. Turn it off on a provider’s detail page to keep that provider’s selected individual style instead; the other providers remain grouped. While Shared pill is on, the individual **Menu bar style** selector is disabled.
+**Shared pill** joins participating providers inside one capsule. It is **off by default**. Turn it on on a provider’s detail page to join the combined pill. Providers left off keep their selected individual styles. While Shared pill is on, the individual **Menu bar style** selector is disabled.
 
 <a href="docs/screenshots/menu-bar-shared-pill.png"><img src="docs/screenshots/menu-bar-shared-pill.png" alt="Single combined pill with ChatGPT, Cursor, and Grok Bot using fictional values" width="354" /></a>
 
@@ -95,9 +95,9 @@ Both supported spend layouts for OpenAI balance and ChatGPT, Cursor, and Claude 
 
 **Appearance**
 
-ChatGPT and OpenAI examples with themed marks, standard marks, and capsule backgrounds switched off.
+ChatGPT and OpenAI using the current monochrome marks, with capsule backgrounds on and off.
 
-<a href="docs/screenshots/menu-bar-appearance.png"><img src="docs/screenshots/menu-bar-appearance.png" alt="ChatGPT and OpenAI examples with themed marks, standard marks, and capsule backgrounds switched off." width="540" /></a>
+<a href="docs/screenshots/menu-bar-appearance.png"><img src="docs/screenshots/menu-bar-appearance.png" alt="ChatGPT and OpenAI using the current monochrome marks, with capsule backgrounds on and off." width="540" /></a>
 
 **Sizes**
 
@@ -146,11 +146,11 @@ The gallery includes detail views, settings, and available actions. Click an ima
 
 | Spend | Efficiency |
 | --- | --- |
-| <a href="docs/screenshots/spend.png"><img src="docs/screenshots/spend.png" alt="Combined work-spend chart with recorded and projected totals." width="360" /></a><br>Combined work-spend chart with recorded and projected totals. | <a href="docs/screenshots/efficiency.png"><img src="docs/screenshots/efficiency.png" alt="Current Efficiency screen; the engine is not wired in this Electron build." width="360" /></a><br>Current Efficiency screen; the engine is not wired in this Electron build. |
+| <a href="docs/screenshots/spend.png"><img src="docs/screenshots/spend.png" alt="Combined work-spend chart with recorded and projected totals." width="360" /></a><br>Combined work-spend chart with recorded and projected totals. | <a href="docs/screenshots/efficiency.png"><img src="docs/screenshots/efficiency.png" alt="Efficiency with no scored local sessions in this synthetic example." width="360" /></a><br>Efficiency with no scored local sessions in this synthetic example. |
 
 | Scoreboard | Alerts |
 | --- | --- |
-| <a href="docs/screenshots/scoreboard.png"><img src="docs/screenshots/scoreboard.png" alt="Current Scoreboard shell with its empty session state and badge list." width="360" /></a><br>Current Scoreboard shell with its empty session state and badge list. | <a href="docs/screenshots/alerts.png"><img src="docs/screenshots/alerts.png" alt="Current Alerts screen with no advisories in this sample session." width="360" /></a><br>Current Alerts screen with no advisories in this sample session. |
+| <a href="docs/screenshots/scoreboard.png"><img src="docs/screenshots/scoreboard.png" alt="Scoreboard with no scored local sessions in this synthetic example." width="360" /></a><br>Scoreboard with no scored local sessions in this synthetic example. | <a href="docs/screenshots/alerts.png"><img src="docs/screenshots/alerts.png" alt="Current Alerts screen with no advisories in this sample session." width="360" /></a><br>Current Alerts screen with no advisories in this sample session. |
 
 | Options | Options Bottom |
 | --- | --- |
@@ -162,7 +162,7 @@ The gallery includes detail views, settings, and available actions. Click an ima
 
 </details>
 
-The Efficiency and Scoreboard images show the current placeholder states in the Electron build; they do not imply that session scoring is implemented. Alerts shows its current empty advisory view.
+The Efficiency and Scoreboard examples show an empty local-session state. Alerts shows its current empty advisory view.
 
 The menu-bar sheet uses the app’s actual drawing code with sample values, arranged on a neutral backdrop. It is not a capture of a personal desktop.
 
@@ -390,7 +390,7 @@ npm run dev
 
 ## Legacy Swift app
 
-`menubar/` is the original SwiftPM menu-bar app. It has a few things the Electron port does not yet: menu-bar capsule styles, themed logos, the optional spend proxy, notifications, and the `--*-check` command-line probes. Build it with:
+`menubar/` is the original SwiftPM menu-bar app. It retains historical features such as the optional spend proxy and the `--*-check` command-line probes. The current Electron app uses monochrome provider marks. Build it with:
 
 ```bash
 cd menubar
