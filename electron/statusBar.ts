@@ -1,6 +1,6 @@
 import { nativeImage } from "electron";
 import { isStacked, type BarDesign } from "./barDesign";
-import { shortMoney } from "./format";
+import { barMoney } from "./format";
 import { encodePng } from "./iconRaster";
 import { providerIconRgba } from "./providerArt";
 import { tintBalanceUSD, tintRemainingPct, tintSpendUSD } from "./spendTint";
@@ -91,7 +91,7 @@ function metricsFor(
       const n = Number(balLine.value.replace(/[^0-9.]/g, ""));
       metrics.push({
         label: "B",
-        value: balLine.value.replace(/\s/g, ""),
+        value: Number.isFinite(n) ? barMoney(n) : balLine.value.replace(/\s/g, ""),
         color: Number.isFinite(n)
           ? tintBalanceUSD(n, colorOpts)
           : tintSpendUSD(0, s.id, colorOpts, "month"),
@@ -101,14 +101,14 @@ function metricsFor(
   if (s.todayUSD !== undefined && sp.showDailyInBar) {
     metrics.push({
       label: "D",
-      value: shortMoney(s.todayUSD),
+      value: barMoney(s.todayUSD),
       color: tintSpendUSD(s.todayUSD, s.id, colorOpts, "day"),
     });
   }
   if (s.monthUSD !== undefined && sp.showMonthlyInBar) {
     metrics.push({
       label: "M",
-      value: shortMoney(s.monthUSD),
+      value: barMoney(s.monthUSD),
       color: tintSpendUSD(s.monthUSD, s.id, colorOpts, "month"),
     });
   }
@@ -144,12 +144,14 @@ const GLYPHS: Record<string, number[]> = {
   " ": [0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000],
 };
 
-function textWidth(s: string, scale: number): number {
+function textWidth(s: string, scale: number, bold: boolean): number {
+  // Semibold dilation adds one column of trailing stroke weight.
+  const advance = bold ? scale : 0;
   let w = 0;
   for (const ch of s) {
-    w += (GLYPHS[ch] ? 5 : 4) * scale + scale;
+    w += (GLYPHS[ch] ? 5 : 4) * scale + scale + advance;
   }
-  return Math.max(0, w - scale);
+  return Math.max(0, w - scale - advance);
 }
 
 function drawText(
@@ -161,22 +163,42 @@ function drawText(
   y: number,
   rgb: [number, number, number],
   scale: number,
+  bold = true,
 ): void {
   let cx = Math.round(x);
   const cy = Math.round(y);
+  // Semibold: stamp each lit cell plus right/down neighbors so strokes match
+  // Swift's NSFont.monospacedDigitSystemFont(.semibold).
+  const stamp = bold
+    ? [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+      ]
+    : [[0, 0]];
   for (const ch of s) {
     const g = GLYPHS[ch] ?? GLYPHS["."];
     for (let row = 0; row < 7; row++) {
       for (let col = 0; col < 5; col++) {
         if (((g[row] >> (4 - col)) & 1) === 0) continue;
-        for (let dy = 0; dy < scale; dy++) {
-          for (let dx = 0; dx < scale; dx++) {
-            put(buf, width, height, cx + col * scale + dx, cy + row * scale + dy, rgb, 255);
+        for (const [ox, oy] of stamp) {
+          for (let dy = 0; dy < scale; dy++) {
+            for (let dx = 0; dx < scale; dx++) {
+              put(
+                buf,
+                width,
+                height,
+                cx + (col + ox) * scale + dx,
+                cy + (row + oy) * scale + dy,
+                rgb,
+                255,
+              );
+            }
           }
         }
       }
     }
-    cx += 5 * scale + scale;
+    cx += 5 * scale + scale + (bold ? scale : 0);
   }
 }
 
@@ -244,13 +266,14 @@ function blitIcon(
   }
 }
 
+/** Match Swift StatusBarArtwork chromeHeight. */
 function chromeHeight(design: BarDesign): number {
-  // Slightly taller than Swift 22/24 so the larger marks still sit with padding.
-  return isStacked(design) || design === "baseline" ? 28 : 26;
+  return isStacked(design) || design === "baseline" ? 24 : 22;
 }
 
 /**
  * Compose distinct per-provider capsules as one Retina PNG for the tray.
+ * Layout mirrors Swift StatusBarArtwork (24pt stack, 14pt icon, 10/11pt text).
  */
 export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Electron.NativeImage {
   if (blocks.length === 0) {
@@ -258,28 +281,30 @@ export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Elect
   }
 
   const scale = 2; // draw @2x then set scaleFactor
-  // Swift uses 14pt increased; we paint a bit larger so Artwork cutouts read clearly.
-  const iconSize = 18 * scale;
+  // Swift enlarged icon is 14pt; keep that so marks fill the capsule like before.
+  const iconSize = 14 * scale;
   const gap = 5 * scale;
-  const pad = 6 * scale;
+  const pad = 7 * scale;
   const heights = blocks.map((b) => chromeHeight(b.design) * scale);
   const height = Math.max(...heights);
-  const valueScale = 2;
-  const labelScale = 2;
+  // 7-row glyphs × 3 ≈ 10.5–11pt @2x — close to Swift's 10/11pt semibold.
+  const valueScale = 3;
+  const labelScale = 3;
+  const bold = true;
 
   const widths = blocks.map((b) => {
     if (isStacked(b.design)) {
-      const labels = Math.max(...b.metrics.map((m) => textWidth(m.label, labelScale)), 0);
-      const values = Math.max(...b.metrics.map((m) => textWidth(m.value, valueScale)), 0);
+      const labels = Math.max(...b.metrics.map((m) => textWidth(m.label, labelScale, bold)), 0);
+      const values = Math.max(...b.metrics.map((m) => textWidth(m.value, valueScale, bold)), 0);
       const track = b.design === "lanes" || b.design === "segments" ? 60 * scale : 0;
       return pad + iconSize + pad + labels + 5 * scale + track + values + pad;
     }
     let content = 0;
     b.metrics.forEach((m, i) => {
       const row =
-        textWidth(m.label, labelScale) +
+        textWidth(m.label, labelScale, bold) +
         4 * scale +
-        textWidth(m.value, valueScale) +
+        textWidth(m.value, valueScale, bold) +
         (b.design === "rings" && m.percent !== undefined ? 21 * scale : 0);
       content += row + (i > 0 ? 13 * scale : 0);
       if (b.design === "focus") content += 8 * scale;
@@ -325,8 +350,8 @@ export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Elect
     );
 
     let cursor = x + pad + iconSize + pad;
-    const labels = Math.max(...b.metrics.map((m) => textWidth(m.label, labelScale)), 0);
-    const values = Math.max(...b.metrics.map((m) => textWidth(m.value, valueScale)), 0);
+    const labels = Math.max(...b.metrics.map((m) => textWidth(m.label, labelScale, bold)), 0);
+    const values = Math.max(...b.metrics.map((m) => textWidth(m.value, valueScale, bold)), 0);
     const minPct = Math.min(
       ...b.metrics.filter((m) => m.percent !== undefined).map((m) => m.percent as number),
       999,
@@ -340,14 +365,11 @@ export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Elect
       ];
 
       if (isStacked(b.design)) {
-        // Center the D/M block as a whole in the capsule (same idea as the icon).
-        const glyphH = 7 * labelScale;
-        const rowPitch = Math.round(10.5 * scale);
-        const n = b.metrics.length;
-        const blockH = n <= 1 ? glyphH : glyphH + (n - 1) * rowPitch;
-        const startY = y0 + Math.round((bh - blockH) / 2);
-        const rowY = startY + mi * rowPitch;
-        drawText(buf, total, height, m.label, cursor, rowY, LABEL, labelScale);
+        // Swift: rowY = y0 + i*11 + 1; value drawn at rowY - 1.
+        const rowY =
+          y0 +
+          (b.metrics.length === 1 ? 5 * scale : mi * 11 * scale + 1 * scale);
+        drawText(buf, total, height, m.label, cursor, rowY, LABEL, labelScale, bold);
         let valueX = cursor + labels + 5 * scale;
         if ((b.design === "lanes" || b.design === "segments") && m.percent !== undefined) {
           const mw = 54 * scale;
@@ -374,10 +396,11 @@ export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Elect
           total,
           height,
           m.value,
-          valueX + values - textWidth(m.value, valueScale),
-          rowY,
+          valueX + values - textWidth(m.value, valueScale, bold),
+          rowY - 1 * scale,
           color,
           valueScale,
+          bold,
         );
         return;
       }
@@ -388,7 +411,7 @@ export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Elect
 
       if (b.design === "focus" && m.percent === minPct && minPct < 999) {
         const rowW =
-          textWidth(m.label, labelScale) + 4 * scale + textWidth(m.value, valueScale);
+          textWidth(m.label, labelScale, bold) + 4 * scale + textWidth(m.value, valueScale, bold);
         fillRoundRect(
           buf,
           total,
@@ -417,7 +440,6 @@ export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Elect
       }
 
       if (b.design === "rings" && m.percent !== undefined) {
-        // simple ring track
         const cx = cursor + 8 * scale;
         const cy = y0 + 11 * scale;
         const r = 7 * scale;
@@ -450,10 +472,11 @@ export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Elect
       }
 
       const rowY = y0 + (b.design === "baseline" ? 3 * scale : 5 * scale);
-      drawText(buf, total, height, m.label, cursor, rowY, LABEL, labelScale);
-      const vx = cursor + textWidth(m.label, labelScale) + 4 * scale;
-      drawText(buf, total, height, m.value, vx, rowY, color, valueScale);
-      const rowW = textWidth(m.label, labelScale) + 4 * scale + textWidth(m.value, valueScale);
+      drawText(buf, total, height, m.label, cursor, rowY, LABEL, labelScale, bold);
+      const vx = cursor + textWidth(m.label, labelScale, bold) + 4 * scale;
+      drawText(buf, total, height, m.value, vx, rowY, color, valueScale, bold);
+      const rowW =
+        textWidth(m.label, labelScale, bold) + 4 * scale + textWidth(m.value, valueScale, bold);
       if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
         const my = y0 + bh - 5 * scale;
         fillRoundRect(buf, total, height, cursor, my, rowW, 2 * scale, scale, TRACK, 255);

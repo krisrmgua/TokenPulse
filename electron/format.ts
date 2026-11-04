@@ -44,6 +44,15 @@ export function shortMoney(usd: number): string {
   return `$${v.toFixed(2)}`;
 }
 
+/** Swift `Fmt.money` — menu-bar spend figures. */
+export function barMoney(usd: number): string {
+  const a = Math.abs(usd);
+  if (a < 10) return `$${usd.toFixed(2)}`;
+  if (a < 1_000) return `$${Math.round(usd)}`;
+  if (a < 1_000_000) return `$${(usd / 1_000).toFixed(1)}k`;
+  return `$${(usd / 1_000_000).toFixed(1)}M`;
+}
+
 export function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
