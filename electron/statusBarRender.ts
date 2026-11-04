@@ -35,8 +35,25 @@ function chromeHeight(design: BarDesign): number {
   return design === "baseline" ? 32 : 30;
 }
 
-function iconSizeFor(design: BarDesign): number {
-  return isStacked(design) ? 18 : 18;
+function iconSizeFor(_design: BarDesign): number {
+  return 18;
+}
+
+/** Horizontal padding / gaps — divider gets more air so the larger type isn't cramped. */
+function padFor(design: BarDesign): number {
+  return isStacked(design) ? 7 : 9;
+}
+
+function iconGapFor(design: BarDesign): number {
+  return isStacked(design) ? 5 : 6;
+}
+
+function labelValueGap(design: BarDesign): number {
+  return isStacked(design) ? 5 : 6;
+}
+
+function metricGap(design: BarDesign): number {
+  return isStacked(design) ? 0 : 16;
 }
 
 function fontsFor(design: BarDesign): { value: string; label: string } {
@@ -115,14 +132,16 @@ function contentWidth(
         : 0;
     return labels + 5 + track + values;
   }
+  const lv = labelValueGap(b.design);
+  const mg = metricGap(b.design);
   let content = 0;
   b.metrics.forEach((m, i) => {
     const row =
       measure(ctx, m.label, labelFont) +
-      4 +
+      lv +
       measure(ctx, m.value, valueFont) +
       (b.design === "rings" && m.percent !== undefined ? 21 : 0);
-    content += row + (i > 0 ? 13 : 0);
+    content += row + (i > 0 ? mg : 0);
     if (b.design === "focus") content += 8;
   });
   return Math.max(content, 8);
@@ -159,9 +178,6 @@ export function renderStatusBarPng(
   }
 
   const scaleFactor = 2;
-  // Outer pad 7; icon→label gap tightened a hair. Stacked icons are larger (see iconSizeFor).
-  const pad = 7;
-  const iconGap = 5;
   const gap = 5;
   const height = Math.max(...blocks.map((b) => chromeHeight(b.design)));
 
@@ -171,7 +187,10 @@ export function renderStatusBarPng(
   mctx.font = VALUE_FONT_STACKED;
   const widths = blocks.map((b) => {
     const { value, label } = fontsFor(b.design);
-    return pad + iconSizeFor(b.design) + iconGap + contentWidth(mctx, b, value, label) + pad;
+    const pad = padFor(b.design);
+    return (
+      pad + iconSizeFor(b.design) + iconGapFor(b.design) + contentWidth(mctx, b, value, label) + pad
+    );
   });
   const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, blocks.length - 1);
 
@@ -191,13 +210,17 @@ export function renderStatusBarPng(
     const bw = widths[bi];
     const bh = chromeHeight(b.design);
     const iconSize = iconSizeFor(b.design);
+    const pad = padFor(b.design);
+    const iconGap = iconGapFor(b.design);
+    const lvGap = labelValueGap(b.design);
+    const mGap = metricGap(b.design);
     const y0 = (height - bh) / 2;
     const alpha = b.stale ? 0.45 : 1;
     ctx.globalAlpha = alpha;
 
     if (prefs.darkBarBackground) {
       ctx.fillStyle = b.allowanceEmpty ? EXHAUSTED : PANEL;
-      roundRect(ctx, pt(x), pt(y0), pt(bw), pt(bh), pt(6));
+      roundRect(ctx, pt(x), pt(y0), pt(bw), pt(bh), pt(isStacked(b.design) ? 6 : 8));
       ctx.fill();
     }
 
@@ -265,13 +288,13 @@ export function renderStatusBarPng(
 
       if (b.design === "divider" && mi > 0) {
         ctx.fillStyle = TRACK;
-        ctx.fillRect(pt(cursor - 7), pt(y0 + 8), pt(1), pt(14));
+        ctx.fillRect(pt(cursor - mGap / 2), pt(y0 + 8), pt(1), pt(14));
       }
 
       const labelW = measure(ctx, m.label, labelFontPx) / S;
       const valueW = measure(ctx, m.value, valueFontPx) / S;
       const rowInner =
-        labelW + 4 + valueW + (b.design === "rings" && m.percent !== undefined ? 21 : 0);
+        labelW + lvGap + valueW + (b.design === "rings" && m.percent !== undefined ? 21 : 0);
 
       if (b.design === "focus" && m.percent === minPct && minPct < 999) {
         ctx.fillStyle = rgb(m.color, 0.18);
@@ -312,12 +335,12 @@ export function renderStatusBarPng(
       ctx.fillText(m.label, pt(cursor), pt(rowY + labelOffset));
       ctx.fillStyle = color;
       ctx.font = valueFontPx;
-      ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY + valueOffset));
+      ctx.fillText(m.value, pt(cursor + labelW + lvGap), pt(rowY + valueOffset));
 
 
       if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
         const my = y0 + (b.design === "baseline" ? 22 : 24);
-        const meterW = labelW + 4 + valueW;
+        const meterW = labelW + lvGap + valueW;
         ctx.fillStyle = TRACK;
         roundRect(ctx, pt(cursor), pt(my), pt(meterW), pt(4), pt(2));
         ctx.fill();
@@ -329,7 +352,7 @@ export function renderStatusBarPng(
         }
       }
 
-      cursor += labelW + 4 + valueW + 13 + (b.design === "focus" ? 5 : 0);
+      cursor += labelW + lvGap + valueW + mGap + (b.design === "focus" ? 5 : 0);
     });
 
     ctx.globalAlpha = 1;
