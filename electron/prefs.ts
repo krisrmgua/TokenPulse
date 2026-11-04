@@ -22,6 +22,7 @@ function defaultSource(id: SourceId): SourcePrefs {
     enabled: false,
     showInTray: false,
     account: accounts.includes("personal") ? "personal" : accounts[0],
+    sharedPill: true,
     barDesign: "divider",
     showDailyInBar: true,
     showMonthlyInBar: true,
@@ -48,6 +49,7 @@ export function defaultPrefs(): Prefs {
     menuBarScale: 100,
     spendColorsEnabled: true,
     pastelBarColors: true,
+    sharedRingLetters: false,
     rememberPanelPlace: false,
     notificationsEnabled: true,
     allowanceAlertsEnabled: true,
@@ -111,6 +113,7 @@ function normalizeSource(id: SourceId, s: Partial<SourcePrefs> | undefined, base
     enabled: typeof s?.enabled === "boolean" ? s.enabled : base.enabled,
     showInTray: typeof s?.showInTray === "boolean" ? s.showInTray : base.showInTray,
     account,
+    sharedPill: typeof s?.sharedPill === "boolean" ? s.sharedPill : true,
     barDesign: parseBarDesign(s?.barDesign, spendOnly),
     showDailyInBar: typeof s?.showDailyInBar === "boolean" ? s.showDailyInBar : base.showDailyInBar,
     showMonthlyInBar:
@@ -214,6 +217,7 @@ export class PrefsStore {
     if (typeof patch.showDailyInBar === "boolean") next.showDailyInBar = patch.showDailyInBar;
     if (typeof patch.showMonthlyInBar === "boolean") next.showMonthlyInBar = patch.showMonthlyInBar;
     if (typeof patch.showBalanceInBar === "boolean") next.showBalanceInBar = patch.showBalanceInBar;
+    if (typeof patch.sharedPill === "boolean") next.sharedPill = patch.sharedPill;
     if (patch.barDesign) {
       next.barDesign = parseBarDesign(patch.barDesign, spendOnlyFor(id, next.account));
     } else {
@@ -261,6 +265,9 @@ export class PrefsStore {
     }
     if (typeof patch.pastelBarColors === "boolean") {
       this.data.pastelBarColors = patch.pastelBarColors;
+    }
+    if (typeof patch.sharedRingLetters === "boolean") {
+      this.data.sharedRingLetters = patch.sharedRingLetters;
     }
     if (typeof patch.rememberPanelPlace === "boolean") {
       this.data.rememberPanelPlace = patch.rememberPanelPlace;
@@ -370,6 +377,7 @@ export class PrefsStore {
       base.spendColorsEnabled = raw.spendColorsEnabled;
     }
     if (typeof raw.pastelBarColors === "boolean") base.pastelBarColors = raw.pastelBarColors;
+    if (typeof raw.sharedRingLetters === "boolean") base.sharedRingLetters = raw.sharedRingLetters;
     if (typeof raw.rememberPanelPlace === "boolean") {
       base.rememberPanelPlace = raw.rememberPanelPlace;
     } else {

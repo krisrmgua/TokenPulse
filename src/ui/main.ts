@@ -261,6 +261,7 @@ function settingsMenuSelect(
   id: SourceId,
   aria: string,
   options: { value: string; label: string; selected: boolean }[],
+  disabled = false,
 ): string {
   const opts = options
     .map(
@@ -268,7 +269,7 @@ function settingsMenuSelect(
         `<option value="${escapeHtml(o.value)}" ${o.selected ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
     )
     .join("");
-  return `<select class="settings-menu" data-act="${act}" data-id="${id}" aria-label="${escapeHtml(aria)}">${opts}</select>`;
+  return `<select class="settings-menu" data-act="${act}" data-id="${id}" aria-label="${escapeHtml(aria)}" ${disabled ? "disabled" : ""}>${opts}</select>`;
 }
 
 function rowsHtml(rows: [string, string][]): string {
@@ -594,7 +595,16 @@ function providerOptionsPanel(st: AppState, id: SourceId, s: SourceSnapshot): st
     </div>`);
   }
 
-  rows.push(`<div class="settings-row">
+  rows.push(
+    switchRow(
+      "shared-pill",
+      "Shared pill",
+      sp.sharedPill,
+      !s.enabled,
+      `data-id="${id}"`,
+    ),
+  );
+  rows.push(`<div class="settings-row${sp.sharedPill ? " disabled" : ""}">
     <span class="settings-label">Menu bar style</span>
     ${settingsMenuSelect(
       "bar-design",
@@ -605,11 +615,13 @@ function providerOptionsPanel(st: AppState, id: SourceId, s: SourceSnapshot): st
         label: `${d.number} · ${d.name}`,
         selected: sp.barDesign === d.id,
       })),
+      sp.sharedPill,
     )}
   </div>`);
 
-  // Compact stack is D+M by design for work spend. OpenAI can hide D, M, or B.
-  const showSpendToggles = id === "openai" || (spendStyleOnly && !isStacked(sp.barDesign));
+  // Compact stack is D+M by design for work spend. The shared pill uses the toggles instead.
+  // OpenAI can hide D, M, or B.
+  const showSpendToggles = id === "openai" || (spendStyleOnly && (sp.sharedPill || !isStacked(sp.barDesign)));
   if (showSpendToggles) {
     rows.push(
       switchRow(
@@ -896,6 +908,7 @@ function optionsView(st: AppState): string {
             `<option value="${n}" ${n === p.menuBarScale ? "selected" : ""}>${escapeHtml(MENU_BAR_SCALE_LABELS[n])} — ${n}%</option>`,
         ).join("")}</select>
       </div>
+      ${switchRow("ring-letters", "Letters inside rings", p.sharedRingLetters)}
       ${switchRow("pastel-bar", "Pastel menu-bar colors", p.pastelBarColors, !p.spendColorsEnabled)}
       ${switchRow("remember-place", "Reopen where I left off", p.rememberPanelPlace)}
     </div>
@@ -1228,6 +1241,10 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
       await api.setPrefs({ spendColorsEnabled: (target as HTMLInputElement).checked });
       await load(true);
       return;
+    case "ring-letters":
+      await api.setPrefs({ sharedRingLetters: (target as HTMLInputElement).checked });
+      await load(true);
+      return;
     case "pastel-bar":
       await api.setPrefs({ pastelBarColors: (target as HTMLInputElement).checked });
       await load(true);
@@ -1273,6 +1290,9 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
       return;
     case "bar-design":
       if (id) await setSource(id, { barDesign: target.value as BarDesign });
+      return;
+    case "shared-pill":
+      if (id) await setSource(id, { sharedPill: (target as HTMLInputElement).checked });
       return;
   }
 }

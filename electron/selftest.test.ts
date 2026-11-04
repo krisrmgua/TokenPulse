@@ -28,7 +28,7 @@ import {
 } from "./sources/claudeUsage";
 import { BAR_DESIGNS } from "./barDesign";
 import { blocksFromSources } from "./statusBar";
-import { defaultPrefs, parseSwiftOpenAIBalance } from "./prefs";
+import { defaultPrefs, parseSwiftOpenAIBalance, PrefsStore } from "./prefs";
 import { classifyCredential, decodeCredential, SAFE_STORAGE_PREFIX } from "./sources/cursorAuth";
 import { isValidAdminKeyFormat, OpenAIKeyStore } from "./openaiAdmin";
 import { renderMark } from "./iconRaster";
@@ -195,7 +195,86 @@ test("fresh defaults are off and personal", () => {
   assert.equal(prefs.sources.grokbot.account, "personal");
   assert.equal(prefs.sources.openai.account, "work");
   assert.equal(prefs.sources.openai.showBalanceInBar, true);
+  assert.equal(prefs.sources.claude.sharedPill, true);
   assert.equal(prefs.menuBarScale, 100);
+  assert.equal(prefs.sharedRingLetters, false);
+});
+
+test("cursor menu bar marks the monthly allowance as M", () => {
+  const prefs = defaultPrefs();
+  prefs.sources.cursor.enabled = true;
+  prefs.sources.cursor.showInTray = true;
+  const snap = {
+    id: "cursor" as const,
+    name: "Cursor",
+    enabled: true,
+    showInTray: true,
+    account: "personal" as const,
+    accounts: ["personal" as const, "work" as const],
+    status: "ok" as const,
+    meters: [{ id: "included", label: "Included Pro", percentLeft: 71 }],
+    lines: [],
+    credential: "",
+  };
+  assert.deepEqual(
+    blocksFromSources([snap], prefs)[0].metrics.map((m) => m.label),
+    ["M"],
+  );
+  prefs.sources.cursor.sharedPill = false;
+  prefs.sources.cursor.barDesign = "baseline";
+  assert.deepEqual(
+    blocksFromSources([snap], prefs)[0].metrics.map((m) => m.label),
+    ["Pro"],
+  );
+});
+
+test("menu bar labels the five-hour window as 5", () => {
+  const prefs = defaultPrefs();
+  prefs.sources.claude.enabled = true;
+  prefs.sources.claude.showInTray = true;
+  const snap = {
+    id: "claude" as const,
+    name: "Claude",
+    enabled: true,
+    showInTray: true,
+    account: "personal" as const,
+    accounts: ["personal" as const, "work" as const],
+    status: "ok" as const,
+    meters: [
+      { id: "session", label: "5-hour", percentLeft: 80 },
+      { id: "weekly", label: "Weekly", percentLeft: 40 },
+    ],
+    lines: [],
+    credential: "",
+  };
+  assert.deepEqual(
+    blocksFromSources([snap], prefs)[0].metrics.map((m) => m.label),
+    ["5", "W"],
+  );
+});
+
+test("a missing shared pill turns on without resetting provider flags", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tp-prefs-"));
+  const file = path.join(dir, "prefs.json");
+  const raw = defaultPrefs();
+  raw.sources.claude.enabled = true;
+  raw.sources.claude.showInTray = true;
+  raw.sources.cursor.barDesign = "rings";
+  const stored = JSON.parse(JSON.stringify(raw)) as {
+    sources: Record<string, { sharedPill?: boolean }>;
+  };
+  for (const source of Object.values(stored.sources)) delete source.sharedPill;
+  fs.writeFileSync(file, JSON.stringify(stored));
+  const store = new PrefsStore(file);
+  assert.equal(store.get().sources.claude.enabled, true);
+  assert.equal(store.get().sources.claude.showInTray, true);
+  assert.equal(store.get().sources.claude.sharedPill, true);
+  assert.equal(store.get().sources.cursor.enabled, false);
+  assert.equal(store.get().sources.cursor.barDesign, "rings");
+  store.setSource("cursor", { sharedPill: false });
+  assert.equal(store.get().sources.cursor.sharedPill, false);
+  assert.equal(store.get().sources.cursor.enabled, false);
+  assert.equal(store.get().sources.claude.enabled, true);
 });
 
 test("swift openai balance baseline copies into electron prefs", () => {
@@ -383,6 +462,52 @@ test("menu bar size steps from normal to micro, including compact stack", () => 
   const stackMicro = renderStatusBarPng([stack], { ...base, menuBarScale: 65 });
   assert.ok(stackMicro.height < stackFull.height * 0.75);
   assert.ok(stackMicro.width < stackFull.width * 0.8);
+});
+
+test("shared pill joins providers and labels only the extra rings", () => {
+  const metric = {
+    label: "5H",
+    value: "80%",
+    percent: 80,
+    color: [88, 210, 236] as [number, number, number],
+  };
+  const week = { ...metric, label: "W", value: "40%", percent: 40 };
+  const prefs = { darkBarBackground: true, themedProviderLogos: false, menuBarScale: 100 as const };
+  const block = (
+    id: "claude" | "cursor" | "openai",
+    metrics: (typeof metric)[],
+    sharedPill: boolean,
+  ) => ({
+    id,
+    metrics,
+    stale: false,
+    allowanceEmpty: false,
+    design: "rings" as const,
+    sharedPill,
+  });
+  const separate = renderStatusBarPng(
+    [block("claude", [metric], false), block("cursor", [metric, week], false)],
+    prefs,
+  );
+  const shared = renderStatusBarPng(
+    [block("claude", [metric], true), block("cursor", [metric, week], true)],
+    prefs,
+  );
+  assert.ok(shared.width < separate.width);
+  const oneRing = renderStatusBarPng([block("claude", [metric], true)], prefs);
+  const twoRings = renderStatusBarPng([block("claude", [metric, week], true)], prefs);
+  assert.ok(twoRings.width > oneRing.width);
+  const mixed = renderStatusBarPng(
+    [block("openai", [metric], false), block("claude", [metric], true), block("cursor", [week], true)],
+    prefs,
+  );
+  assert.ok(mixed.width > oneRing.width);
+  assert.ok(mixed.width < separate.width + oneRing.width);
+  const letters = renderStatusBarPng(
+    [block("claude", [metric, week], true)],
+    { ...prefs, sharedRingLetters: true },
+  );
+  assert.ok(letters.width < twoRings.width);
 });
 
 test("divider stays text and baseline keeps the underline meter", () => {
