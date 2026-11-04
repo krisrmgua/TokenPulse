@@ -14,11 +14,11 @@ const LABEL = "rgb(153, 173, 199)";
 
 /**
  * Tray renderer for macOS + Windows (same canvas path on both).
- * Metrics mirror StatusBarArtwork with `enlarged: true`.
+ * Divider/rings/focus sized up so type fills the capsule; stacked stays its own scale.
  */
 const VALUE_FONT =
-  '600 14px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
-const LABEL_FONT = '600 13px "SF Pro Text", -apple-system';
+  '600 16px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT = '600 15px "SF Pro Text", -apple-system';
 const VALUE_FONT_STACKED =
   '600 13px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
 const LABEL_FONT_STACKED = '600 12px "SF Pro Text", -apple-system';
@@ -30,14 +30,13 @@ function rgb(c: [number, number, number], alpha = 1): string {
 }
 
 function chromeHeight(design: BarDesign): number {
-  // Stacked fonts are 13/12 — 28pt chrome keeps ~2pt air above/below the $ rows.
   if (isStacked(design)) return 28;
-  return design === "baseline" ? 24 : 22;
+  // Divider/rings/focus: taller capsule around the larger type.
+  return design === "baseline" ? 32 : 30;
 }
 
-/** Stacked capsules are taller — grow the provider mark to fill the spare chrome. */
 function iconSizeFor(design: BarDesign): number {
-  return isStacked(design) ? 18 : 14;
+  return isStacked(design) ? 18 : 18;
 }
 
 function fontsFor(design: BarDesign): { value: string; label: string } {
@@ -266,7 +265,7 @@ export function renderStatusBarPng(
 
       if (b.design === "divider" && mi > 0) {
         ctx.fillStyle = TRACK;
-        ctx.fillRect(pt(cursor - 7), pt(y0 + 5), pt(1), pt(12));
+        ctx.fillRect(pt(cursor - 7), pt(y0 + 8), pt(1), pt(14));
       }
 
       const labelW = measure(ctx, m.label, labelFontPx) / S;
@@ -276,17 +275,17 @@ export function renderStatusBarPng(
 
       if (b.design === "focus" && m.percent === minPct && minPct < 999) {
         ctx.fillStyle = rgb(m.color, 0.18);
-        roundRect(ctx, pt(cursor - 3), pt(y0 + 2), pt(rowInner + 6), pt(18), pt(3));
+        roundRect(ctx, pt(cursor - 3), pt(y0 + 5), pt(rowInner + 6), pt(20), pt(3));
         ctx.fill();
         ctx.fillStyle = color;
-        roundRect(ctx, pt(cursor - 3), pt(y0 + 5), pt(2), pt(12), pt(1));
+        roundRect(ctx, pt(cursor - 3), pt(y0 + 8), pt(2), pt(14), pt(1));
         ctx.fill();
         cursor += 3;
       }
 
       if (b.design === "rings" && m.percent !== undefined) {
         const cx = pt(cursor + 8);
-        const cy = pt(y0 + 11);
+        const cy = pt(y0 + bh / 2);
         ctx.strokeStyle = TRACK;
         ctx.lineWidth = 2.5 * S;
         ctx.beginPath();
@@ -303,8 +302,8 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Top-origin. 14px $ vs 13px D/M: +1 reads low, +0 high — split the difference.
-      const rowY = y0 + (b.design === "baseline" ? 3 : 4);
+      // Top-origin; 16px $ vs 15px D/M — half-point keeps optical centers aligned.
+      const rowY = y0 + (b.design === "baseline" ? 4 : 7);
       const labelOffset = b.design === "baseline" ? -1 : 1;
       const valueOffset = b.design === "baseline" ? -2 : 0.5;
       ctx.textBaseline = "top";
@@ -317,7 +316,7 @@ export function renderStatusBarPng(
 
 
       if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
-        const my = y0 + 18;
+        const my = y0 + (b.design === "baseline" ? 22 : 24);
         const meterW = labelW + 4 + valueW;
         ctx.fillStyle = TRACK;
         roundRect(ctx, pt(cursor), pt(my), pt(meterW), pt(4), pt(2));
