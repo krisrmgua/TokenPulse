@@ -1014,6 +1014,14 @@ input[type="number"] {
   text-align: right;
 }
 
+.settings-status.ok {
+  color: var(--green);
+}
+
+.settings-status.bad {
+  color: var(--red);
+}
+
 .action-row {
   justify-content: flex-start;
   min-height: auto;
