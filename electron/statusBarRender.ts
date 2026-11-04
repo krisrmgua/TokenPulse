@@ -13,15 +13,12 @@ const TRACK = "rgb(59, 82, 99)";
 const LABEL = "rgb(153, 173, 199)";
 
 /**
- * Swift StatusBarArtwork fonts:
- *   value = NSFont.monospacedDigitSystemFont(..., .semibold)
- *   label = NSFont.systemFont(..., .semibold)
+ * Stacked values use a real mono face so `$` / digits share one advance and both
+ * rows rasterize the same (AppleSystemUIFontMonospacedDigit was drifting per line).
  */
-const VALUE_FONT_STACKED =
-  '600 11px ".AppleSystemUIFontMonospacedDigit", -apple-system, system-ui, sans-serif';
+const VALUE_FONT_STACKED = '700 11px Menlo, "SF Mono", ui-monospace, monospace';
 const LABEL_FONT_STACKED = '600 10px -apple-system, "SF Pro Text", system-ui, sans-serif';
-const VALUE_FONT =
-  '600 12px ".AppleSystemUIFontMonospacedDigit", -apple-system, system-ui, sans-serif';
+const VALUE_FONT = '700 12px Menlo, "SF Mono", ui-monospace, monospace';
 const LABEL_FONT = '600 11px -apple-system, "SF Pro Text", system-ui, sans-serif';
 
 const iconCache = new Map<string, Image>();
@@ -154,25 +151,31 @@ export function renderStatusBarPng(
   }
 
   const scaleFactor = 2;
-  const iconSize = 14;
-  const pad = 7;
+  // Larger than Swift's 14pt mark so the cube reads at menu-bar scale.
+  const iconSize = 18;
+  const pad = 5;
   const gap = 5;
   const height = Math.max(...blocks.map((b) => chromeHeight(b.design)));
 
   const scratch = createCanvas(4, 4);
   const mctx = scratch.getContext("2d");
+  // Measure fonts at device pixels so advances match the paint pass.
+  mctx.font = VALUE_FONT_STACKED;
   const widths = blocks.map((b) => {
     const { value, label } = fontsFor(b.design);
     return pad + iconSize + pad + contentWidth(mctx, b, value, label) + pad;
   });
   const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, blocks.length - 1);
 
+  // Paint in device pixels (no ctx.scale) so every glyph hits whole pixels —
+  // fractional x/y was making $91 and $104 look like different weights.
   const canvas = createCanvas(Math.ceil(total * scaleFactor), Math.ceil(height * scaleFactor));
   const ctx = canvas.getContext("2d");
-  ctx.scale(scaleFactor, scaleFactor);
   ctx.textBaseline = "top";
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
+  const S = scaleFactor;
+  const pt = (n: number) => Math.round(n * S);
 
   let x = 0;
   for (let bi = 0; bi < blocks.length; bi++) {
@@ -185,19 +188,35 @@ export function renderStatusBarPng(
 
     if (prefs.darkBarBackground) {
       ctx.fillStyle = b.allowanceEmpty ? EXHAUSTED : PANEL;
-      roundRect(ctx, x, y0, bw, bh, 6);
+      roundRect(ctx, pt(x), pt(y0), pt(bw), pt(bh), pt(6));
       ctx.fill();
     }
 
     const icon = cachedIcon(b.id, prefs.themedProviderLogos);
     if (icon) {
-      ctx.drawImage(icon, x + pad, y0 + (bh - iconSize) / 2, iconSize, iconSize);
+      ctx.drawImage(
+        icon,
+        pt(x + pad),
+        pt(y0 + (bh - iconSize) / 2),
+        pt(iconSize),
+        pt(iconSize),
+      );
     }
 
     const { value: valueFont, label: labelFont } = fontsFor(b.design);
+    // Device-pixel font sizes (11pt → 22px @2x).
+    const valueFontPx = valueFont.replace(/(\d+)px/, (_, n) => `${Number(n) * S}px`);
+    const labelFontPx = labelFont.replace(/(\d+)px/, (_, n) => `${Number(n) * S}px`);
     let cursor = x + pad + iconSize + pad;
-    const labelColW = Math.max(0, ...b.metrics.map((m) => measure(ctx, m.label, labelFont)));
-    const valueColW = Math.max(0, ...b.metrics.map((m) => measure(ctx, m.value, valueFont)));
+    const labelColW = Math.max(
+      0,
+      ...b.metrics.map((m) => measure(ctx, m.label, labelFontPx) / S),
+    );
+    const valueColW = Math.max(
+      0,
+      ...b.metrics.map((m) => measure(ctx, m.value, valueFontPx) / S),
+    );
+    void valueColW; // width reserved via left-aligned $ column
     const minPct = Math.min(
       ...b.metrics.filter((m) => m.percent !== undefined).map((m) => m.percent as number),
       999,
@@ -207,67 +226,70 @@ export function renderStatusBarPng(
       const color = rgb(m.color);
 
       if (isStacked(b.design)) {
-        const rowY = b.metrics.length === 1 ? y0 + 5 : y0 + mi * 11 + 1;
+        // Two rows: even top/bottom pad in the 24pt chrome (pitch 10 → start 2).
+        const rowPitch = b.metrics.length <= 1 ? 0 : 10;
+        const stackH = (b.metrics.length - 1) * rowPitch + 10;
+        const stackTop = y0 + (bh - stackH) / 2;
+        const rowY = b.metrics.length === 1 ? y0 + (bh - 10) / 2 : stackTop + mi * rowPitch;
         ctx.fillStyle = LABEL;
-        ctx.font = labelFont;
-        ctx.fillText(m.label, cursor, rowY);
-        let valueX = cursor + labelColW + 5;
+        ctx.font = labelFontPx;
+        ctx.fillText(m.label, pt(cursor), pt(rowY));
+        let valueX = cursor + labelColW + 4;
         if ((b.design === "lanes" || b.design === "segments") && m.percent !== undefined) {
           const mw = 54;
           const my = rowY + 4;
           ctx.fillStyle = TRACK;
-          roundRect(ctx, valueX, my, mw, 4, 2);
+          roundRect(ctx, pt(valueX), pt(my), pt(mw), pt(4), pt(2));
           ctx.fill();
           const frac = Math.max(0, Math.min(1, m.percent / 100));
           if (frac > 0) {
             ctx.fillStyle = color;
-            roundRect(ctx, valueX, my, mw * frac, 4, 2);
+            roundRect(ctx, pt(valueX), pt(my), pt(mw * frac), pt(4), pt(2));
             ctx.fill();
           }
           valueX += 60;
         }
+        // Left-align values so stacked `$` share one column ($91 / $104).
         ctx.fillStyle = color;
-        ctx.font = valueFont;
-        const vw = measure(ctx, m.value, valueFont);
-        ctx.fillText(m.value, valueX + valueColW - vw, rowY - 1);
+        ctx.font = valueFontPx;
+        ctx.fillText(m.value, pt(valueX), pt(rowY));
         return;
       }
 
       if (b.design === "divider" && mi > 0) {
         ctx.fillStyle = TRACK;
-        ctx.fillRect(cursor - 7, y0 + 5, 1, 12);
+        ctx.fillRect(pt(cursor - 7), pt(y0 + 5), pt(1), pt(12));
       }
 
+      const labelW = measure(ctx, m.label, labelFontPx) / S;
+      const valueW = measure(ctx, m.value, valueFontPx) / S;
       const rowInner =
-        measure(ctx, m.label, labelFont) +
-        4 +
-        measure(ctx, m.value, valueFont) +
-        (b.design === "rings" && m.percent !== undefined ? 21 : 0);
+        labelW + 4 + valueW + (b.design === "rings" && m.percent !== undefined ? 21 : 0);
 
       if (b.design === "focus" && m.percent === minPct && minPct < 999) {
         ctx.fillStyle = rgb(m.color, 0.18);
-        roundRect(ctx, cursor - 3, y0 + 2, rowInner + 6, 18, 3);
+        roundRect(ctx, pt(cursor - 3), pt(y0 + 2), pt(rowInner + 6), pt(18), pt(3));
         ctx.fill();
         ctx.fillStyle = color;
-        roundRect(ctx, cursor - 3, y0 + 5, 2, 12, 1);
+        roundRect(ctx, pt(cursor - 3), pt(y0 + 5), pt(2), pt(12), pt(1));
         ctx.fill();
         cursor += 3;
       }
 
       if (b.design === "rings" && m.percent !== undefined) {
-        const cx = cursor + 8;
-        const cy = y0 + 11;
+        const cx = pt(cursor + 8);
+        const cy = pt(y0 + 11);
         ctx.strokeStyle = TRACK;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2.5 * S;
         ctx.beginPath();
-        ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 8 * S, 0, Math.PI * 2);
         ctx.stroke();
         const frac = Math.max(0, Math.min(1, m.percent / 100));
         if (frac > 0) {
           ctx.strokeStyle = color;
           ctx.lineCap = "round";
           ctx.beginPath();
-          ctx.arc(cx, cy, 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
+          ctx.arc(cx, cy, 8 * S, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
           ctx.stroke();
         }
         cursor += 21;
@@ -277,33 +299,27 @@ export function renderStatusBarPng(
       const labelOffset = b.design === "baseline" ? -1 : 1;
       const valueOffset = b.design === "baseline" ? -2 : 0;
       ctx.fillStyle = LABEL;
-      ctx.font = labelFont;
-      ctx.fillText(m.label, cursor, rowY + labelOffset);
-      const lw = measure(ctx, m.label, labelFont);
+      ctx.font = labelFontPx;
+      ctx.fillText(m.label, pt(cursor), pt(rowY + labelOffset));
       ctx.fillStyle = color;
-      ctx.font = valueFont;
-      ctx.fillText(m.value, cursor + lw + 4, rowY + valueOffset);
+      ctx.font = valueFontPx;
+      ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY + valueOffset));
 
       if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
         const my = y0 + 18;
-        const meterW = measure(ctx, m.label, labelFont) + 4 + measure(ctx, m.value, valueFont);
+        const meterW = labelW + 4 + valueW;
         ctx.fillStyle = TRACK;
-        roundRect(ctx, cursor, my, meterW, 4, 2);
+        roundRect(ctx, pt(cursor), pt(my), pt(meterW), pt(4), pt(2));
         ctx.fill();
         const frac = Math.max(0, Math.min(1, m.percent / 100));
         if (frac > 0) {
           ctx.fillStyle = color;
-          roundRect(ctx, cursor, my, meterW * frac, 4, 2);
+          roundRect(ctx, pt(cursor), pt(my), pt(meterW * frac), pt(4), pt(2));
           ctx.fill();
         }
       }
 
-      cursor +=
-        measure(ctx, m.label, labelFont) +
-        4 +
-        measure(ctx, m.value, valueFont) +
-        13 +
-        (b.design === "focus" ? 5 : 0);
+      cursor += labelW + 4 + valueW + 13 + (b.design === "focus" ? 5 : 0);
     });
 
     ctx.globalAlpha = 1;
