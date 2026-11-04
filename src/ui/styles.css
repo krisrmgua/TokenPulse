@@ -400,12 +400,13 @@ h3 {
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px;
+  border-radius: 9px;
+  padding: 13px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
   min-width: 0;
+  min-height: 113px;
 }
 
 .card.off {
@@ -413,20 +414,27 @@ h3 {
 }
 
 .card.stale .figures,
-.card.stale .meters {
+.card.stale .meters,
+.card.stale .spend-headline {
   opacity: 0.55;
 }
 
 .card-head {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .card-head .name {
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
+}
+
+.subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.3;
 }
 
 .badge {
@@ -439,6 +447,13 @@ h3 {
 
 .spacer {
   flex: 1;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-left: 30px;
 }
 
 .figures {
@@ -463,37 +478,55 @@ h3 {
   gap: 7px;
 }
 
-.meter-top {
+.meter {
   display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  margin-bottom: 3px;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.meter-top .pct {
+.meter-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.meter-label {
+  width: 36px;
+  flex: none;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.meter-reset {
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.meter-row .pct {
+  width: 39px;
+  flex: none;
+  text-align: right;
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .bar {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--bg);
+  flex: 1;
+  min-width: 0;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line);
   overflow: hidden;
 }
 
 .bar > span {
   display: block;
   height: 100%;
-  background: var(--green);
-}
-
-.bar > span.mid {
-  background: var(--amber);
-}
-
-.bar > span.low {
-  background: var(--red);
+  border-radius: 999px;
+  background: var(--cyan);
 }
 
 .msg {
@@ -679,14 +712,19 @@ input[type="number"] {
 .card-titles {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .card.compact {
   min-height: 0;
-  padding: 8px 12px;
+  padding: 11px 13px;
   cursor: pointer;
+  gap: 0;
+}
+
+.card.compact .card-head {
+  align-items: center;
 }
 
 .disabled-list {
@@ -696,15 +734,29 @@ input[type="number"] {
 }
 
 .spend-headline {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.spend-headline.muted {
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .details {
   align-self: flex-start;
-  font-size: 11px;
-  color: var(--cyan);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.details.stale {
+  color: var(--amber);
+}
+
+.details:hover {
+  color: var(--ink);
 }
 
 .foot-note {
