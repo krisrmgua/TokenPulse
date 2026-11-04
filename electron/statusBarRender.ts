@@ -297,10 +297,10 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Top-origin. At 14/13, Swift's value+0 sat a hair high vs D/M — nudge +1 only.
+      // Top-origin. 14px $ vs 13px D/M: +1 reads low, +0 high — split the difference.
       const rowY = y0 + (b.design === "baseline" ? 3 : 4);
       const labelOffset = b.design === "baseline" ? -1 : 1;
-      const valueOffset = b.design === "baseline" ? -2 : 1;
+      const valueOffset = b.design === "baseline" ? -2 : 0.5;
       ctx.textBaseline = "top";
       ctx.fillStyle = LABEL;
       ctx.font = labelFontPx;
