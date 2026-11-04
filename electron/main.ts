@@ -309,6 +309,7 @@ function wireIpc(): void {
       menuBarScale: patch.menuBarScale,
       spendColorsEnabled: patch.spendColorsEnabled,
       pastelBarColors: patch.pastelBarColors,
+      sharedRingLetters: patch.sharedRingLetters,
       rememberPanelPlace: patch.rememberPanelPlace,
       notificationsEnabled: patch.notificationsEnabled,
       allowanceAlertsEnabled: patch.allowanceAlertsEnabled,

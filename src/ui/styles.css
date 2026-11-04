@@ -839,6 +839,14 @@ input[type="number"] {
   border-radius: 10px;
 }
 
+.settings-row.disabled {
+  opacity: 0.45;
+}
+
+.settings-menu:disabled {
+  cursor: default;
+}
+
 .settings-row {
   display: flex;
   align-items: center;

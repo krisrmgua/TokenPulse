@@ -3,14 +3,14 @@ import path from "node:path";
 import { createCanvas, loadImage, type Image, type SKRSContext2D } from "@napi-rs/canvas";
 import { isStacked, type BarDesign } from "./barDesign";
 import { menuBarScaleFromRaw, type Prefs, type SourceId } from "./types";
-import type { StatusBlock } from "./statusBarTypes";
+import type { StatusBlock, StatusMetric } from "./statusBarTypes";
 
 export type { StatusBlock, StatusMetric } from "./statusBarTypes";
 
 const PANEL = "rgba(19, 41, 59, 0.95)";
 const EXHAUSTED = "rgba(77, 19, 20, 0.95)";
 const TRACK = "rgb(59, 82, 99)";
-const LABEL = "rgb(153, 173, 199)";
+const LABEL = "rgb(206, 218, 232)";
 
 /**
  * Tray renderer for macOS + Windows (same canvas path on both).
@@ -116,13 +116,24 @@ export async function warmStatusBarIcons(
       if (iconCache.has(key)) return;
       const file = iconPath(id, themed);
       if (!file) return;
-      iconCache.set(key, await loadImage(file));
+      iconCache.set(key, lightenTowardWhite(await loadImage(file)));
     }),
   );
 }
 
 function cachedIcon(id: SourceId, themed: boolean): Image | null {
   return iconCache.get(`${id}:${themed ? "t" : "p"}`) ?? null;
+}
+
+/** Pull a menu-bar mark a step toward white without changing its shape. */
+function lightenTowardWhite(icon: Image): Image {
+  const canvas = createCanvas(icon.width, icon.height);
+  const g = canvas.getContext("2d");
+  g.drawImage(icon, 0, 0);
+  g.globalCompositeOperation = "source-atop";
+  g.fillStyle = "rgba(255,255,255,0.42)";
+  g.fillRect(0, 0, icon.width, icon.height);
+  return canvas as unknown as Image;
 }
 
 function contentWidth(
@@ -175,13 +186,184 @@ function roundRect(
   ctx.closePath();
 }
 
+/** Twin-gauge ring, sized so a 3-digit percent fits in the middle. */
+const SHARED_RING = 26;
+
+interface BarSegment {
+  blocks: StatusBlock[];
+  shared: boolean;
+}
+
+/** One shared pill where the first opted-in provider sits. Opted-out providers keep their own capsules. */
+function barSegments(blocks: StatusBlock[]): BarSegment[] {
+  const shared = blocks.filter((b) => b.sharedPill === true);
+  let placed = false;
+  const out: BarSegment[] = [];
+  for (const block of blocks) {
+    if (block.sharedPill === true) {
+      if (!placed) {
+        out.push({ blocks: shared, shared: true });
+        placed = true;
+      }
+      continue;
+    }
+    out.push({ blocks: [block], shared: false });
+  }
+  return out;
+}
+
+function segmentHeight(seg: BarSegment, k: number): number {
+  if (seg.shared) return 28 * k;
+  const b = seg.blocks[0];
+  return chromeHeight(b.design, b.metrics.length, k);
+}
+
+/** A letter in the ring needs less room than a 3-digit percent. */
+function ringSlot(letters: boolean, label: string): number {
+  if (!letters) return SHARED_RING;
+  return label.length >= 3 ? SHARED_RING : 22;
+}
+
+function prefixBesideRing(metricCount: number, metric: StatusMetric, letters: boolean): boolean {
+  if (metricCount <= 1) return false;
+  return !(letters && metric.percent !== undefined);
+}
+
+function sharedInnerWidth(
+  ctx: SKRSContext2D,
+  blocks: StatusBlock[],
+  k: number,
+  valueFont: string,
+  labelFont: string,
+  letters: boolean,
+): number {
+  let width = 0;
+  const icon = iconSizeFor("rings", k);
+  const iconGap = iconGapFor(k);
+  blocks.forEach((b, bi) => {
+    if (bi > 0) width += 8 * k;
+    width += icon + iconGap;
+    b.metrics.forEach((m, mi) => {
+      if (mi > 0) width += 6 * k;
+      if (prefixBesideRing(b.metrics.length, m, letters)) {
+        width += measure(ctx, m.label, labelFont) + 4 * k;
+      }
+      width += m.percent !== undefined ? ringSlot(letters, m.label) * k : measure(ctx, m.value, valueFont);
+    });
+  });
+  return width;
+}
+
+function paintSharedPill(
+  ctx: SKRSContext2D,
+  blocks: StatusBlock[],
+  x: number,
+  y0: number,
+  bw: number,
+  bh: number,
+  k: number,
+  S: number,
+  prefs: { darkBarBackground: boolean; themedProviderLogos: boolean; sharedRingLetters?: boolean },
+): void {
+  const pt = (n: number) => Math.round(n * S);
+  const pad = pillPad(k);
+  const iconSize = iconSizeFor("rings", k);
+  const iconGap = iconGapFor(k);
+  const { value: valueFont, label: labelFont } = fontsFor("rings", k);
+  const valueFontPx = valueFont.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Number(n) * S}px`);
+  const labelFontPx = labelFont.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Number(n) * S}px`);
+  const letters = prefs.sharedRingLetters === true;
+  const midY = y0 + bh / 2;
+
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.lineCap = "butt";
+  if (prefs.darkBarBackground) {
+    ctx.fillStyle = PANEL;
+    roundRect(ctx, pt(x), pt(y0), pt(bw), pt(bh), pt(6 * k));
+    ctx.fill();
+  }
+
+  let cursor = x + pad;
+  blocks.forEach((b, bi) => {
+    if (bi > 0) cursor += 8 * k;
+    ctx.globalAlpha = b.stale ? 0.45 : 1;
+    const icon = cachedIcon(b.id, prefs.themedProviderLogos);
+    if (icon) {
+      ctx.drawImage(icon, pt(cursor), pt(midY - iconSize / 2), pt(iconSize), pt(iconSize));
+    }
+    cursor += iconSize + iconGap;
+    b.metrics.forEach((m, mi) => {
+      if (mi > 0) cursor += 6 * k;
+      if (prefixBesideRing(b.metrics.length, m, letters)) {
+        ctx.fillStyle = LABEL;
+        ctx.font = labelFontPx;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(m.label, pt(cursor), pt(midY));
+        cursor += measure(ctx, m.label, labelFontPx) / S + 4 * k;
+      }
+      if (m.percent === undefined) {
+        ctx.fillStyle = rgb(m.color);
+        ctx.font = valueFontPx;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(m.value, pt(cursor), pt(midY));
+        cursor += measure(ctx, m.value, valueFontPx) / S;
+        return;
+      }
+      const slot = ringSlot(letters, m.label) * k;
+      const radius = (letters && m.label.length < 3 ? 9 : 11) * k;
+      const cx = pt(cursor + slot / 2);
+      const cy = pt(midY);
+      ctx.strokeStyle = TRACK;
+      ctx.lineWidth = 2.5 * k * S;
+      ctx.lineCap = "butt";
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * S, 0, Math.PI * 2);
+      ctx.stroke();
+      const frac = Math.max(0, Math.min(1, m.percent / 100));
+      if (frac > 0) {
+        ctx.strokeStyle = rgb(m.color);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * S, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac);
+        ctx.stroke();
+        ctx.lineCap = "butt";
+      }
+      const num = letters ? m.label : String(Math.round(m.percent));
+      const numPt = (letters ? (num.length >= 3 ? 8 : 12) : num.length >= 3 ? 8 : 11) * k;
+      ctx.fillStyle = rgb(m.color);
+      ctx.font = `600 ${Math.round(numPt * S)}px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      const ink = ctx.measureText(num);
+      const ascent = ink.actualBoundingBoxAscent || 0;
+      const descent = ink.actualBoundingBoxDescent || 0;
+      // Center the painted letters, not the em box. Caps sit high inside that box.
+      const drop = ascent > 0 ? (ascent - descent) / 2 : numPt * S * 0.36;
+      ctx.fillText(num, cx, cy + drop);
+      cursor += slot;
+    });
+  });
+
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.lineCap = "butt";
+}
+
 /**
  * Paint Swift-matching status capsules at 1× CSS points into a 2× bitmap.
  * Call `warmStatusBarIcons` first so provider marks are available.
  */
 export function renderStatusBarPng(
   blocks: StatusBlock[],
-  prefs: Pick<Prefs, "darkBarBackground" | "themedProviderLogos"> & { menuBarScale?: number },
+  prefs: Pick<Prefs, "darkBarBackground" | "themedProviderLogos"> & {
+    menuBarScale?: number;
+    sharedRingLetters?: boolean;
+  },
 ): { png: Buffer; width: number; height: number; scaleFactor: number } {
   if (blocks.length === 0) {
     return { png: Buffer.alloc(0), width: 0, height: 0, scaleFactor: 2 };
@@ -190,27 +372,29 @@ export function renderStatusBarPng(
   const scaleFactor = 2;
   const gapScale = menuScale(prefs.menuBarScale ?? 100);
   const gap = 5 * gapScale;
-  const height = Math.max(
-    ...blocks.map((b) => chromeHeight(b.design, b.metrics.length, menuScale(prefs.menuBarScale ?? 100))),
-  );
+  const kBar = gapScale;
+  const segs = barSegments(blocks);
+  const height = Math.max(...segs.map((seg) => segmentHeight(seg, kBar)));
 
   const scratch = createCanvas(4, 4);
   const mctx = scratch.getContext("2d");
   // Measure fonts at device pixels so advances match the paint pass.
   mctx.font = VALUE_FONT_STACKED;
-  const widths = blocks.map((b) => {
-    const k = menuScale(prefs.menuBarScale ?? 100);
-    const { value, label } = fontsFor(b.design, k);
-    const pad = pillPad(k);
-    return (
-      pad +
-      iconSizeFor(b.design, k) +
-      iconGapFor(k) +
-      contentWidth(mctx, b, value, label, k) +
-      pad
-    );
+  const widths = segs.map((seg) => {
+    if (seg.shared) {
+      const { value, label } = fontsFor("rings", kBar);
+      return (
+        pillPad(kBar) +
+        sharedInnerWidth(mctx, seg.blocks, kBar, value, label, prefs.sharedRingLetters === true) +
+        pillPad(kBar)
+      );
+    }
+    const b = seg.blocks[0];
+    const { value, label } = fontsFor(b.design, kBar);
+    const pad = pillPad(kBar);
+    return pad + iconSizeFor(b.design, kBar) + iconGapFor(kBar) + contentWidth(mctx, b, value, label, kBar) + pad;
   });
-  const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, blocks.length - 1);
+  const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, segs.length - 1);
 
   // Paint in device pixels (no ctx.scale) so every glyph hits whole pixels —
   // fractional x/y was making $91 and $104 look like different weights.
@@ -223,10 +407,17 @@ export function renderStatusBarPng(
   const pt = (n: number) => Math.round(n * S);
 
   let x = 0;
-  for (let bi = 0; bi < blocks.length; bi++) {
-    const b = blocks[bi];
-    const k = menuScale(prefs.menuBarScale ?? 100);
+  for (let bi = 0; bi < segs.length; bi++) {
+    const seg = segs[bi];
     const bw = widths[bi];
+    if (seg.shared) {
+      const bh = 28 * kBar;
+      paintSharedPill(ctx, seg.blocks, x, (height - bh) / 2, bw, bh, kBar, S, prefs);
+      x += bw + gap;
+      continue;
+    }
+    const b = seg.blocks[0];
+    const k = kBar;
     const bh = chromeHeight(b.design, b.metrics.length, k);
     const iconSize = iconSizeFor(b.design, k);
     const pad = pillPad(k);

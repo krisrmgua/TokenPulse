@@ -42,6 +42,10 @@ export interface SourcePrefs {
   enabled: boolean;
   showInTray: boolean;
   account: AccountMode;
+  /**
+   * Join the one shared menu-bar pill. While on, this provider's menu-bar style is not used.
+   */
+  sharedPill: boolean;
   /** Per-provider capsule layout (Swift Menu bar style). */
   barDesign: BarDesign;
   /** Work spend: show D in the menu bar. */
@@ -103,6 +107,11 @@ export interface Prefs {
   spendColorsEnabled: boolean;
   /** Soften hot colors in the menu bar. */
   pastelBarColors: boolean;
+  /**
+   * Shared pill: draw 5, W, or B in the ring instead of the percent.
+   * The letter replaces the label beside the ring.
+   */
+  sharedRingLetters: boolean;
   /** Keep last Mission route when reopening the panel (Swift rememberPanelPlace). */
   rememberPanelPlace: boolean;
   notificationsEnabled: boolean;

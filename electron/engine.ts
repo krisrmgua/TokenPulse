@@ -447,7 +447,7 @@ export class Engine {
       const fetchedAt = new Date(usage.fetchedAt);
       if (usage.session) {
         out.meters.push(claudeMeter("session", "5-hour", usage.session, fetchedAt));
-        bits.push(`5H ${personalWindowLabel(usage.session)}`);
+        bits.push(`5 ${personalWindowLabel(usage.session)}`);
         out.lines.push({
           label: "5-hour resets",
           value: claudeResetLine(usage.session, fetchedAt),
@@ -551,7 +551,7 @@ export class Engine {
           resetAt: new Date(c.weekly.resetAt).toISOString(),
         });
         const bits = c.session
-          ? `5H ${barPercent(c.session.percentLeft, new Date(c.session.resetAt))} W ${barPercent(c.weekly.percentLeft, new Date(c.weekly.resetAt))}`
+          ? `5 ${barPercent(c.session.percentLeft, new Date(c.session.resetAt))} W ${barPercent(c.weekly.percentLeft, new Date(c.weekly.resetAt))}`
           : `W ${barPercent(c.weekly.percentLeft, new Date(c.weekly.resetAt))}`;
         out.barText = `GPT ${bits}`;
         out.lines.push({ label: "Weekly resets", value: displayDateTime(new Date(c.weekly.resetAt)) });

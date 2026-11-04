@@ -14,4 +14,6 @@ export interface StatusBlock {
   stale: boolean;
   allowanceEmpty: boolean;
   design: BarDesign;
+  /** Join the single shared pill. Missing means this block keeps its own capsule. */
+  sharedPill?: boolean;
 }
