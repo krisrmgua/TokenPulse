@@ -1,4 +1,5 @@
 import { barDesignTitle, barDesignsFor, type BarDesign } from "../../electron/barDesign";
+import { POLICY_CAP, tintBalanceUSD, tintRemainingPct, tintSpendUSD } from "../../electron/spendTint";
 import type {
   AccountMode,
   ActionResult,
@@ -94,6 +95,15 @@ function money(usd: number): string {
   return `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** Compact dollars — matches Swift `Fmt.money` used on overview cards. */
+function compactMoney(usd: number): string {
+  const a = Math.abs(usd);
+  if (a < 10) return `$${usd.toFixed(2)}`;
+  if (a < 1_000) return `$${Math.round(usd)}`;
+  if (a < 1_000_000) return `$${(usd / 1_000).toFixed(1)}k`;
+  return `$${(usd / 1_000_000).toFixed(1)}M`;
+}
+
 function shortMoney(usd: number): string {
   const v = Math.max(0, usd);
   if (v >= 10_000) return `$${Math.round(v / 1000)}k`;
@@ -115,10 +125,38 @@ function dateTime(iso: string): string {
   });
 }
 
-function resetHint(iso: string): string {
-  const ms = new Date(iso).getTime() - Date.now();
-  if (ms > 0 && ms < 24 * 3_600_000) return `resets ${clockTime(iso)}`;
-  return `resets ${dateTime(iso)}`;
+/** Swift `ChatGPTUsageParse.displayDate` — Today/Tomorrow or full calendar form. */
+function displayReset(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "Reset time unavailable";
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayDelta = Math.round((startDate.getTime() - startToday.getTime()) / 86_400_000);
+  const time = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+  if (dayDelta === 0) return `Today at ${time}`;
+  if (dayDelta === 1) return `Tomorrow at ${time}`;
+  const cal = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${cal} at ${time}`;
+}
+
+function rgbCss(rgb: [number, number, number]): string {
+  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+}
+
+function meterShortLabel(label: string): string {
+  if (label === "5-hour" || label === "5-hour window") return "5H";
+  if (label === "Weekly" || label === "Weekly window") return "Weekly";
+  if (label.startsWith("Included")) return "Left";
+  return label.length > 8 ? "Left" : label;
 }
 
 function trayWord(): string {
@@ -138,6 +176,22 @@ function accountLabel(id: SourceId, account: AccountMode): string {
   if (id === "grokbot") return "Weekly allowance";
   if (id === "openai") return "Org spend";
   return account === "work" ? "Work spend" : "Personal allowance";
+}
+
+/** Overview card subtitle — matches Swift `providerSubtitle`. */
+function providerSubtitle(s: SourceSnapshot): string {
+  switch (s.id) {
+    case "chatgpt":
+      return s.account === "personal" ? "5-hour / weekly allowances" : "Work credits · planning estimate";
+    case "cursor":
+      return s.account === "personal" ? "Included Pro allowance" : "Work spend · today / month";
+    case "claude":
+      return s.account === "personal" ? "5-hour / weekly allowances" : "Work spend · today / month";
+    case "grokbot":
+      return "Weekly allowance";
+    default:
+      return "Estimated prepaid balance";
+  }
 }
 
 function orderedSources(st: AppState): SourceSnapshot[] {
@@ -163,24 +217,24 @@ function noticeHtml(): string {
   return `<div class="${cls}">${escapeHtml(notice.text)}</div>`;
 }
 
-function meterClass(pct: number): string {
-  if (pct < 20) return "low";
-  if (pct < 50) return "mid";
-  return "";
-}
-
-function meterHtml(m: Meter): string {
+function meterHtml(m: Meter, prefs: Prefs): string {
   const pct = Math.max(0, Math.min(100, Math.round(m.percentLeft)));
-  const reset = m.resetAt ? ` <span class="muted">· ${escapeHtml(resetHint(m.resetAt))}</span>` : "";
+  const tint = rgbCss(tintRemainingPct(pct, prefs));
+  const reset = m.resetAt ? displayReset(m.resetAt) : "Reset time unavailable";
+  const fill = Math.max(0, Math.min(100, pct));
   return `<div class="meter">
-    <div class="meter-top"><span>${escapeHtml(m.label)}${reset}</span><span class="pct">${pct}% left</span></div>
-    <div class="bar"><span class="${meterClass(pct)}" style="width:${pct}%"></span></div>
+    <div class="meter-row">
+      <span class="meter-label">${escapeHtml(meterShortLabel(m.label))}</span>
+      <div class="bar"><span style="width:${fill}%"></span></div>
+      <span class="pct" style="color:${tint}">${pct}%</span>
+    </div>
+    <div class="meter-reset">Resets ${escapeHtml(reset)}</div>
   </div>`;
 }
 
-function metersHtml(s: SourceSnapshot): string {
+function metersHtml(s: SourceSnapshot, prefs: Prefs): string {
   if (s.meters.length === 0) return "";
-  return `<div class="meters">${s.meters.map(meterHtml).join("")}</div>`;
+  return `<div class="meters">${s.meters.map((m) => meterHtml(m, prefs)).join("")}</div>`;
 }
 
 function togglesHtml(s: SourceSnapshot): string {
@@ -214,41 +268,70 @@ function metricsHtml(items: [string, string][]): string {
     .join("")}</div>`;
 }
 
-function spendHeadline(s: SourceSnapshot): string {
-  if (s.todayUSD === undefined && s.monthUSD === undefined) return "";
+function spendHeadline(s: SourceSnapshot, prefs: Prefs): string {
+  // OpenAI overview shows the prepaid balance alone (Swift `headline`).
+  if (s.id === "openai") {
+    const bal = s.lines.find((l) => l.label === "Estimated prepaid balance");
+    if (bal) {
+      const n = Number(bal.value.replace(/[$,]/g, ""));
+      const tint =
+        Number.isFinite(n) && prefs.spendColorsEnabled
+          ? rgbCss(tintBalanceUSD(n, prefs))
+          : "";
+      const shown = Number.isFinite(n) ? compactMoney(n) : bal.value;
+      return `<div class="spend-headline"${tint ? ` style="color:${tint}"` : ""}>${escapeHtml(shown)}</div>`;
+    }
+  }
+  if (s.todayUSD === undefined && s.monthUSD === undefined) {
+    return `<div class="spend-headline muted">No current data</div>`;
+  }
   const bits: string[] = [];
-  if (s.todayUSD !== undefined) bits.push(`Today ${money(s.todayUSD)}`);
-  if (s.monthUSD !== undefined) bits.push(`Month ${money(s.monthUSD)}`);
-  return `<div class="spend-headline">${bits.join(" · ")}</div>`;
+  if (s.todayUSD !== undefined) bits.push(`Today ${compactMoney(s.todayUSD)}`);
+  if (s.monthUSD !== undefined) bits.push(`Month ${compactMoney(s.monthUSD)}`);
+  const tintUsd = s.monthUSD ?? s.todayUSD ?? 0;
+  const tint =
+    prefs.spendColorsEnabled && (POLICY_CAP[s.id] ?? 0) > 0
+      ? rgbCss(tintSpendUSD(tintUsd, s.id, prefs, s.monthUSD !== undefined ? "month" : "day"))
+      : "";
+  return `<div class="spend-headline"${tint ? ` style="color:${tint}"` : ""}>${escapeHtml(bits.join(" · "))}</div>`;
 }
 
 // ---------- views ----------
 
-function sourceCard(s: SourceSnapshot): string {
+function sourceCard(s: SourceSnapshot, prefs: Prefs): string {
   if (!s.enabled) {
     return `<article class="card off compact" data-act="go" data-route="source:${s.id}">
       <div class="card-head">
-        ${providerMark(s.id, 22)}
+        ${providerMark(s.id, 18)}
         <span class="name">${escapeHtml(s.name)}</span>
         <span class="spacer"></span>
-        <span class="dot ${s.status}"></span>
         <span class="status-line">Disabled</span>
       </div>
     </article>`;
   }
+  const body =
+    s.meters.length > 0 ? metersHtml(s, prefs) : spendHeadline(s, prefs);
+  const detailsLabel =
+    s.status === "stale"
+      ? "Last received data · refresh delayed"
+      : s.id === "openai"
+        ? "Estimated balance / reported spend ›"
+        : "View details ›";
   return `<article class="card${s.status === "stale" ? " stale" : ""}">
     <div class="card-head">
-      ${providerMark(s.id, 26)}
+      ${providerMark(s.id, 20)}
       <div class="card-titles">
         <span class="name" data-act="go" data-route="source:${s.id}">${escapeHtml(s.name)}</span>
-        <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span>
+        <span class="subtitle">${escapeHtml(providerSubtitle(s))}</span>
       </div>
       <span class="spacer"></span>
       <span class="status-line ${s.status}">${STATUS_LABEL[s.status]}</span>
     </div>
-    ${s.meters.length > 0 ? metersHtml(s) : spendHeadline(s)}
-    ${s.message ? `<div class="msg${s.status === "error" ? " err" : ""}">${escapeHtml(s.message)}</div>` : ""}
-    <button class="link details" data-act="go" data-route="source:${s.id}">View details ›</button>
+    <div class="card-body">
+      ${body}
+      ${s.message ? `<div class="msg${s.status === "error" ? " err" : ""}">${escapeHtml(s.message)}</div>` : ""}
+      <button class="link details${s.status === "stale" ? " stale" : ""}" data-act="go" data-route="source:${s.id}">${detailsLabel}</button>
+    </div>
   </article>`;
 }
 
@@ -257,12 +340,12 @@ function overviewView(st: AppState): string {
   const sources = orderedSources(st);
   const enabled = sources.filter((s) => s.enabled);
   const disabled = sources.filter((s) => !s.enabled);
-  parts.push(`<div class="grid">${enabled.map(sourceCard).join("")}</div>`);
+  parts.push(`<div class="grid">${enabled.map((s) => sourceCard(s, st.prefs)).join("")}</div>`);
   if (disabled.length > 0) {
-    parts.push(`<div class="disabled-list">${disabled.map(sourceCard).join("")}</div>`);
+    parts.push(`<div class="disabled-list">${disabled.map((s) => sourceCard(s, st.prefs)).join("")}</div>`);
   }
   parts.push(
-    `<div class="foot-note muted">Allowances, prepaid balances, and work spend stay separate. Combined work totals live on the spend chips.</div>`,
+    `<div class="foot-note muted">Allowances, estimated balances, and spend remain separate.</div>`,
   );
   return parts.join("");
 }
@@ -399,7 +482,7 @@ function sourceView(st: AppState, id: SourceId): string {
     if (s.monthUSD !== undefined) figs.push(["Month to date", money(s.monthUSD)]);
     if (s.projectedUSD !== undefined) figs.push(["Projected month-end", money(s.projectedUSD)]);
     if (figs.length > 0) parts.push(metricsHtml(figs));
-    const meters = metersHtml(s);
+    const meters = metersHtml(s, st.prefs);
     if (meters) parts.push(`<div class="card">${meters}</div>`);
     if (s.message) {
       parts.push(`<div class="note ${s.status === "error" ? "err" : "warn"}">${escapeHtml(s.message)}</div>`);
