@@ -213,6 +213,7 @@ function wireIpc(): void {
       darkBarBackground: patch.darkBarBackground,
       spendColorsEnabled: patch.spendColorsEnabled,
       pastelBarColors: patch.pastelBarColors,
+      rememberPanelPlace: patch.rememberPanelPlace,
     });
     if (typeof patch.openAtLogin === "boolean") {
       app.setLoginItemSettings({ openAtLogin: patch.openAtLogin });

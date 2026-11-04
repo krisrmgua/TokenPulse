@@ -72,6 +72,8 @@ export interface Prefs {
   spendColorsEnabled: boolean;
   /** Soften hot colors in the menu bar. */
   pastelBarColors: boolean;
+  /** Keep last Mission route when reopening the panel (Swift rememberPanelPlace). */
+  rememberPanelPlace: boolean;
 }
 
 export const REFRESH_CHOICES = [1, 2, 3, 5, 10, 15, 30];
