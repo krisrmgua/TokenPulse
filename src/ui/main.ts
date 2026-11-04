@@ -1,4 +1,5 @@
 import { barDesignTitle, barDesignsFor, type BarDesign } from "../../electron/barDesign";
+import { displayDate } from "../../electron/format";
 import { POLICY_CAP, tintBalanceUSD, tintRemainingPct, tintSpendUSD } from "../../electron/spendTint";
 import type {
   AccountMode,
@@ -125,27 +126,11 @@ function dateTime(iso: string): string {
   });
 }
 
-/** Swift `ChatGPTUsageParse.displayDate` — Today/Tomorrow or full calendar form. */
+/** Meter reset line — same Today/Tomorrow rules as Swift. */
 function displayReset(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "Reset time unavailable";
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const dayDelta = Math.round((startDate.getTime() - startToday.getTime()) / 86_400_000);
-  const time = date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
-  if (dayDelta === 0) return `Today at ${time}`;
-  if (dayDelta === 1) return `Tomorrow at ${time}`;
-  const cal = date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  return `${cal} at ${time}`;
+  return displayDate(date);
 }
 
 function rgbCss(rgb: [number, number, number]): string {
@@ -310,7 +295,10 @@ function sourceCard(s: SourceSnapshot, prefs: Prefs): string {
     </article>`;
   }
   const body =
-    s.meters.length > 0 ? metersHtml(s, prefs) : spendHeadline(s, prefs);
+    s.meters.length > 0
+      ? metersHtml(s, prefs)
+      : spendHeadline(s, prefs) +
+        (s.resetNote ? `<div class="reset-note">${escapeHtml(s.resetNote)}</div>` : "");
   const detailsLabel =
     s.status === "stale"
       ? "Last received data · refresh delayed"
@@ -335,15 +323,54 @@ function sourceCard(s: SourceSnapshot, prefs: Prefs): string {
   </article>`;
 }
 
+/** Pair providers into rows of two (Swift `providerPairRows`). */
+function pairRowsHtml(cards: string[]): string {
+  const rows: string[] = [];
+  for (let i = 0; i < cards.length; i += 2) {
+    const pair = cards.slice(i, i + 2);
+    if (pair.length === 1) {
+      rows.push(`<div class="grid grid-single">${pair[0]}</div>`);
+    } else {
+      rows.push(`<div class="grid">${pair.join("")}</div>`);
+    }
+  }
+  return rows.join("");
+}
+
+/**
+ * Overview layout mirrors Swift `providerOverviewGrid`:
+ * enabled pairs first; a lone enabled shares its row with up to 3 compact
+ * disabled cards; leftover disabled cards pair below.
+ */
 function overviewView(st: AppState): string {
   const parts = [noticeHtml()];
   const sources = orderedSources(st);
   const enabled = sources.filter((s) => s.enabled);
   const disabled = sources.filter((s) => !s.enabled);
-  parts.push(`<div class="grid">${enabled.map((s) => sourceCard(s, st.prefs)).join("")}</div>`);
-  if (disabled.length > 0) {
-    parts.push(`<div class="disabled-list">${disabled.map((s) => sourceCard(s, st.prefs)).join("")}</div>`);
+  const prefs = st.prefs;
+
+  const pairedEnabled = enabled.slice(0, enabled.length - (enabled.length % 2));
+  const loneEnabled = enabled.length % 2 === 1 ? enabled[enabled.length - 1] : undefined;
+  const besideCap = 3;
+  const besideDisabled = loneEnabled ? disabled.slice(0, besideCap) : [];
+  const overflowDisabled = loneEnabled ? disabled.slice(besideCap) : disabled;
+
+  if (pairedEnabled.length > 0) {
+    parts.push(pairRowsHtml(pairedEnabled.map((s) => sourceCard(s, prefs))));
   }
+  if (loneEnabled) {
+    const right =
+      besideDisabled.length === 0
+        ? `<div class="overview-spacer"></div>`
+        : `<div class="disabled-stack">${besideDisabled.map((s) => sourceCard(s, prefs)).join("")}</div>`;
+    parts.push(
+      `<div class="overview-row">${sourceCard(loneEnabled, prefs)}${right}</div>`,
+    );
+  }
+  if (overflowDisabled.length > 0) {
+    parts.push(pairRowsHtml(overflowDisabled.map((s) => sourceCard(s, prefs))));
+  }
+
   parts.push(
     `<div class="foot-note muted">Allowances, estimated balances, and spend remain separate.</div>`,
   );
