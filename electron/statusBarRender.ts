@@ -13,16 +13,15 @@ const TRACK = "rgb(59, 82, 99)";
 const LABEL = "rgb(153, 173, 199)";
 
 /**
- * Swift StatusBarArtwork fonts. Keep Helvetica/system-ui/Menlo out of the stack
- * (full-bar `$`). Single-line uses the larger 12/11 pair so the tray matches
- * the pre-shrink look; stacked stays 11/10.
+ * Tray type. Keep Helvetica/system-ui/Menlo out (full-bar `$`).
+ * Stacked = bump a little; divider (single-line) = bump more.
  */
 const VALUE_FONT =
-  '600 12px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
-const LABEL_FONT = '600 11px "SF Pro Text", -apple-system';
+  '600 14px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT = '600 13px "SF Pro Text", -apple-system';
 const VALUE_FONT_STACKED =
-  '600 11px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
-const LABEL_FONT_STACKED = '600 10px "SF Pro Text", -apple-system';
+  '600 12px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT_STACKED = '600 12px "SF Pro Text", -apple-system';
 
 const iconCache = new Map<string, Image>();
 
@@ -31,7 +30,10 @@ function rgb(c: [number, number, number], alpha = 1): string {
 }
 
 function chromeHeight(design: BarDesign): number {
-  return isStacked(design) || design === "baseline" ? 24 : 22;
+  // Divider needs 24pt once values are 14pt; stacked already 24.
+  return isStacked(design) || design === "baseline" || design === "divider"
+    ? 24
+    : 22;
 }
 
 function fontsFor(design: BarDesign): { value: string; label: string } {
@@ -229,13 +231,13 @@ export function renderStatusBarPng(
       const color = rgb(m.color);
 
       if (isStacked(b.design)) {
-        // Swift pitch 11; alphabetic baseline so D/M share a line with $ amounts.
-        const rowPitch = b.metrics.length <= 1 ? 0 : 11;
-        const rowBody = 11;
+        // Same 12pt label+value; pitch 12; shared alphabetic baseline.
+        const rowPitch = b.metrics.length <= 1 ? 0 : 12;
+        const rowBody = 12;
         const stackH = (b.metrics.length - 1) * rowPitch + rowBody;
         const stackTop = y0 + (bh - stackH) / 2;
         const rowY = b.metrics.length === 1 ? y0 + (bh - rowBody) / 2 : stackTop + mi * rowPitch;
-        const baseline = rowY + 9;
+        const baseline = rowY + 10;
         ctx.textBaseline = "alphabetic";
         ctx.fillStyle = LABEL;
         ctx.font = labelFontPx;
@@ -264,7 +266,7 @@ export function renderStatusBarPng(
 
       if (b.design === "divider" && mi > 0) {
         ctx.fillStyle = TRACK;
-        ctx.fillRect(pt(cursor - 7), pt(y0 + 5), pt(1), pt(12));
+        ctx.fillRect(pt(cursor - 7), pt(y0 + 5), pt(1), pt(14));
       }
 
       const labelW = measure(ctx, m.label, labelFontPx) / S;
