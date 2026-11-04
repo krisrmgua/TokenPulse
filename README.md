@@ -234,7 +234,16 @@ cd menubar
 ./install.sh
 ```
 
-Both builds install to `~/Applications/TokenPulse.app` with the same bundle id and share the same data folder, so whichever you installed last is the one that runs.
+`./install.sh` replaces `~/Applications/TokenPulse.app` with the Swift build (same bundle id as Electron), so only one of those two can own that path.
+
+To run Swift **alongside** Electron for visual compare:
+
+```bash
+cd menubar
+./install-alongside-electron.sh
+```
+
+That installs `~/Applications/TokenPulse-Swift.app` (`com.kris.tokenpulse.swift`) without touching the Electron app or its LaunchAgent. Quit Swift when done: `pkill -f 'TokenPulse-Swift.app/Contents/MacOS/TokenPulse'`.
 
 ## Version
 
