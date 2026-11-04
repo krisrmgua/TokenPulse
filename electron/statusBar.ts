@@ -2,6 +2,7 @@ import { nativeImage } from "electron";
 import { barMoney } from "./format";
 import { tintBalanceUSD, tintRemainingPct, tintSpendUSD } from "./spendTint";
 import { renderStatusBarPng, warmStatusBarIcons } from "./statusBarRender";
+import { renderStatusBarPngViaSwift } from "./swiftBarRender";
 import type { StatusBlock, StatusMetric } from "./statusBarTypes";
 import {
   PROVIDER_ORDER,
@@ -108,7 +109,9 @@ export async function createStatusBarImage(
     blocks.map((b) => b.id),
     prefs.themedProviderLogos,
   );
-  const { png, scaleFactor } = renderStatusBarPng(blocks, prefs);
-  if (png.length === 0) return nativeImage.createEmpty();
-  return nativeImage.createFromBuffer(png, { scaleFactor });
+  // Prefer AppKit StatusBarArtwork so SF Pro counters / $ match Swift.
+  const swift = renderStatusBarPngViaSwift(blocks, prefs);
+  const painted = swift ?? renderStatusBarPng(blocks, prefs);
+  if (painted.png.length === 0) return nativeImage.createEmpty();
+  return nativeImage.createFromBuffer(painted.png, { scaleFactor: painted.scaleFactor });
 }

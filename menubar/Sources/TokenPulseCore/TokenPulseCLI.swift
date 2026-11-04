@@ -54,6 +54,7 @@ public enum TokenPulseCLI {
           --mission-screen ROUTE     sample screen/submenu (with --mission-preview)
           --mission-capture PATH     sample UI PNG; requires --mission-preview
           --bar-design-preview PATH  offline proof sheet of all seven menu-bar styles
+          --bar-render PATH          tray PNG via StatusBarArtwork (JSON on stdin)
           --provider-icon-preview PATH  themed and monochrome provider marks
           --notification-preview     send a clearly labeled macOS notification test
           --notification-status      macOS permission and test-delivery status
@@ -116,6 +117,20 @@ public enum TokenPulseCLI {
             do { try StatusBarPreview.write(to: path); exit(0) }
             catch { fputs("error: \(error)\n", stderr); exit(1) }
         default: fputs("error: --bar-design-preview requires an output PNG path\n", stderr); exit(2)
+        }
+    }
+
+    if CommandLine.arguments.contains("--bar-render") {
+        switch outputPath(forFlag: "--bar-render", in: CommandLine.arguments) {
+        case .success(let path?):
+            do {
+                let data = FileHandle.standardInput.readDataToEndOfFile()
+                try StatusBarRender.write(json: data, to: path)
+                exit(0)
+            } catch {
+                fputs("error: \(error)\n", stderr); exit(1)
+            }
+        default: fputs("error: --bar-render requires an output PNG path\n", stderr); exit(2)
         }
     }
 

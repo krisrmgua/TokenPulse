@@ -10,6 +10,12 @@ if ! command -v npm >/dev/null; then
 fi
 
 npm install
+# AppKit tray renderer (SF Pro) — bundled as Resources/TokenPulseBar.
+if command -v swift >/dev/null; then
+  (cd "$ROOT/menubar" && swift build -c release)
+else
+  echo "warning: swift not found — tray falls back to canvas fonts" >&2
+fi
 npm run pack:mac
 
 APP_SRC="$(find "$ROOT/release/mac"* -maxdepth 2 -name 'TokenPulse.app' -type d 2>/dev/null | head -1 || true)"
