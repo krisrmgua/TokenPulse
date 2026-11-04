@@ -1,0 +1,114 @@
+[
+  {
+    "file": "menu-bar-combined.png",
+    "caption": "One combined menu bar with ChatGPT, Cursor, Grok Bot, OpenAI API, and Claude, each using its own supported style.",
+    "size": {
+      "width": 1230,
+      "height": 80
+    }
+  },
+  {
+    "file": "menu-bar.png",
+    "caption": "All seven menu-bar styles, rendered by production code with fictional allowance values.",
+    "size": {
+      "width": 1080,
+      "height": 1636
+    }
+  },
+  {
+    "file": "menu-bar-providers.png",
+    "caption": "Every provider appears: ChatGPT, Cursor, Grok Bot, OpenAI API, and Claude. OpenAI shows money rather than quota gauges.",
+    "size": {
+      "width": 1080,
+      "height": 1452
+    }
+  },
+  {
+    "file": "menu-bar-style-divider.png",
+    "caption": "Divider capsule with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.",
+    "size": {
+      "width": 1080,
+      "height": 1000
+    }
+  },
+  {
+    "file": "menu-bar-style-rings.png",
+    "caption": "Twin gauges with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.",
+    "size": {
+      "width": 1080,
+      "height": 1000
+    }
+  },
+  {
+    "file": "menu-bar-style-baseline.png",
+    "caption": "Baseline meters with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.",
+    "size": {
+      "width": 1080,
+      "height": 1000
+    }
+  },
+  {
+    "file": "menu-bar-style-stack.png",
+    "caption": "Compact stack with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.",
+    "size": {
+      "width": 1080,
+      "height": 1000
+    }
+  },
+  {
+    "file": "menu-bar-style-focus.png",
+    "caption": "Focus capsule with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.",
+    "size": {
+      "width": 1080,
+      "height": 1000
+    }
+  },
+  {
+    "file": "menu-bar-style-lanes.png",
+    "caption": "Stacked tracks with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.",
+    "size": {
+      "width": 1080,
+      "height": 1000
+    }
+  },
+  {
+    "file": "menu-bar-style-segments.png",
+    "caption": "Segmented lanes with each allowance provider: ChatGPT, Cursor, Grok Bot, and Claude.",
+    "size": {
+      "width": 1080,
+      "height": 1000
+    }
+  },
+  {
+    "file": "menu-bar-spend.png",
+    "caption": "Both supported spend layouts for OpenAI balance and ChatGPT, Cursor, and Claude work spend. Dollar figures never use quota gauges.",
+    "size": {
+      "width": 1080,
+      "height": 2232
+    }
+  },
+  {
+    "file": "menu-bar-appearance.png",
+    "caption": "ChatGPT and OpenAI examples with themed marks, standard marks, and capsule backgrounds switched off.",
+    "size": {
+      "width": 1636,
+      "height": 788
+    }
+  },
+  {
+    "file": "menu-bar-sizes.png",
+    "caption": "All eight supported menu-bar sizes, from Normal (100%) to Micro (65%), using the Compact stack style.",
+    "size": {
+      "width": 1080,
+      "height": 1848
+    }
+  },
+  {
+    "file": "menu-bar-status.png",
+    "caption": "Healthy, low, exhausted, and stale allowance states using production status and tint logic.",
+    "size": {
+      "width": 1080,
+      "height": 1000
+    }
+  }
+]
