@@ -30,7 +30,9 @@ function rgb(c: [number, number, number], alpha = 1): string {
 }
 
 function chromeHeight(design: BarDesign): number {
-  return isStacked(design) || design === "baseline" ? 24 : 22;
+  // Stacked fonts are 13/12 — 28pt chrome keeps ~2pt air above/below the $ rows.
+  if (isStacked(design)) return 28;
+  return design === "baseline" ? 24 : 22;
 }
 
 function fontsFor(design: BarDesign): { value: string; label: string } {
@@ -228,9 +230,9 @@ export function renderStatusBarPng(
       const color = rgb(m.color);
 
       if (isStacked(b.design)) {
-        // Swift: rowY = y0 + i*11+1; value at rowY-1 (top-origin).
+        // Top-origin; value sits 1pt above label. Stride 12 + inset 3 → ~2pt pad in 28pt chrome.
         const rowY =
-          b.metrics.length === 1 ? y0 + 5 : y0 + mi * 11 + 1;
+          b.metrics.length === 1 ? y0 + 7 : y0 + mi * 12 + 3;
         ctx.textBaseline = "top";
         ctx.fillStyle = LABEL;
         ctx.font = labelFontPx;
