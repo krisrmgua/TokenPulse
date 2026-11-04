@@ -668,7 +668,6 @@ function sourceView(st: AppState, id: SourceId): string {
     <span class="status-line ${s.status}">${STATUS_LABEL[s.status]}${s.fetchedAt ? ` · ${escapeHtml(clockTime(s.fetchedAt))}` : ""}</span>
   </div>`);
   parts.push(providerOptionsPanel(st, id, s));
-  if (s.credential) parts.push(`<div class="note">${escapeHtml(s.credential)}</div>`);
   if (s.enabled) {
     const figs: [string, string][] = [];
     if (s.todayUSD !== undefined) figs.push(["Today", money(s.todayUSD)]);
@@ -686,6 +685,7 @@ function sourceView(st: AppState, id: SourceId): string {
   } else {
     parts.push(`<div class="muted">Off. Turn on Enable to start reading it.</div>`);
   }
+  if (s.credential) parts.push(`<div class="note">${escapeHtml(s.credential)}</div>`);
   return parts.join("");
 }
 
