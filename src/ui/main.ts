@@ -1,5 +1,5 @@
 import { barDesignsFor, isStacked, type BarDesign } from "../../electron/barDesign";
-import { displayDate } from "../../electron/format";
+import { displayDate, formatTokens } from "../../electron/format";
 import {
   POLICY_CAP,
   tintBalanceUSD,
@@ -16,6 +16,7 @@ import {
   type ChartPoint,
   type Meter,
   type Prefs,
+  type ScoreboardModel,
   type SourceId,
   type SourcePrefs,
   type SourceSnapshot,
@@ -155,6 +156,7 @@ function appTintPrefs(prefs: Prefs): Prefs {
 function meterShortLabel(label: string): string {
   if (label === "5-hour" || label === "5-hour window") return "5H";
   if (label === "Weekly" || label === "Weekly window") return "Weekly";
+  if (label === "Included Pro") return "Monthly";
   if (label.startsWith("Included")) return "Left";
   return label.length > 8 ? "Left" : label;
 }
@@ -172,9 +174,11 @@ const STATUS_LABEL: Record<SourceStatus, string> = {
 };
 
 function accountLabel(id: SourceId, account: AccountMode): string {
-  if (id === "chatgpt") return account === "work" ? "Work credits" : "Personal allowance";
+  if (id === "chatgpt") return account === "work" ? "Work credits" : "Plus plan";
   if (id === "grokbot") return "Weekly allowance";
   if (id === "openai") return "Org spend";
+  if (id === "cursor" && account === "personal") return "Pro plan";
+  if (id === "claude" && account === "personal") return "Pro plan";
   return account === "work" ? "Work spend" : "Personal allowance";
 }
 
@@ -182,11 +186,11 @@ function accountLabel(id: SourceId, account: AccountMode): string {
 function providerSubtitle(s: SourceSnapshot): string {
   switch (s.id) {
     case "chatgpt":
-      return s.account === "personal" ? "5-hour / weekly allowances" : "Work credits · planning estimate";
+      return s.account === "personal" ? "Plus plan · 5-hour / weekly usage" : "Work credits · planning estimate";
     case "cursor":
-      return s.account === "personal" ? "Included Pro allowance" : "Work spend · today / month";
+      return s.account === "personal" ? "Pro plan · monthly usage" : "Work spend · today / month";
     case "claude":
-      return s.account === "personal" ? "5-hour / weekly allowances" : "Work spend · today / month";
+      return s.account === "personal" ? "Pro plan · 5-hour / weekly usage" : "Work spend · today / month";
     case "grokbot":
       return "Weekly allowance";
     default:
@@ -653,15 +657,6 @@ function providerOptionsPanel(st: AppState, id: SourceId, s: SourceSnapshot): st
   }
 
   const extras: string[] = [];
-  if (id === "cursor" && s.account === "personal") {
-    extras.push(`<div class="opt-section"><h3>Pro allowance</h3><div class="card">
-      <div class="form-row">
-        <input type="number" id="opt-allowance" min="1" step="1" value="${st.prefs.cursorPersonalAllowanceUSD}" />
-        <button class="btn" data-act="save-allowance">Save</button>
-      </div>
-    </div></div>`);
-  }
-
   if (id === "openai") {
     const keyBlock = st.openAIKeyConfigured
       ? `<div class="form-row">
@@ -676,7 +671,7 @@ function providerOptionsPanel(st: AppState, id: SourceId, s: SourceSnapshot): st
         <div class="muted">Organization Admin key from OpenAI Platform.
           <button class="link" data-act="open-url" data-url="https://platform.openai.com/settings/organization/admin-keys">Open OpenAI Platform</button></div>`;
     const bal = st.prefs.openAIBalance;
-    extras.push(`<div class="opt-section"><h3>Admin API</h3><div class="card">
+    extras.push(`<div class="opt-section"><h3>Admin API</h3><div class="card card-auto">
       ${keyBlock}
       <div class="form-row">
         <span>Current prepaid balance</span>
@@ -722,7 +717,7 @@ function sourceView(st: AppState, id: SourceId): string {
     if (s.monthUSD !== undefined) figs.push(["Month to date", money(s.monthUSD)]);
     if (figs.length > 0) parts.push(metricsHtml(figs));
     const meters = metersHtml(s, st.prefs);
-    if (meters) parts.push(`<div class="card">${meters}</div>`);
+    if (meters) parts.push(`<div class="card card-auto">${meters}</div>`);
     if (s.message) {
       parts.push(`<div class="note ${s.status === "error" ? "err" : "warn"}">${escapeHtml(s.message)}</div>`);
     }
@@ -737,52 +732,124 @@ function sourceView(st: AppState, id: SourceId): string {
   return parts.join("");
 }
 
-function efficiencyView(st: AppState): string {
+function sharePct(v: number): string {
+  return `${Math.round(v * 100)}%`;
+}
+
+function scoreHeader(full: boolean): string {
+  return `<h2 class="page-title">${full ? "Efficiency Scoreboard" : "Efficiency"}</h2>
+    <p class="page-sub">Claude Code · local session analysis</p>
+    <p class="score-disclaimer">Model-cost comparisons are estimates, not subscription charges.</p>`;
+}
+
+function scoreHero(m: ScoreboardModel): string {
+  const trend = `${m.trend >= 0 ? "+" : ""}${m.trend} this week · best ${m.best}`;
+  return `<div class="score-hero">
+    <div class="score-card">
+      <div class="k">Efficiency grade ${escapeHtml(m.grade)}</div>
+      <div class="v cyan">${m.score} / 100</div>
+      <div class="sub">${escapeHtml(trend)}</div>
+    </div>
+    <div class="score-card">
+      <div class="k">Current streak</div>
+      <div class="v">${m.streak} days</div>
+      <div class="sub">Score ≥80</div>
+    </div>
+  </div>`;
+}
+
+function scoreRows(m: ScoreboardModel): string {
+  const rows: [string, string][] = [
+    ["Model fit", `${Math.round(m.modelFitPoints)} / 50`],
+    ["Context discipline", `${Math.round(m.contextPoints)} / 35`],
+    ["Cost hygiene", `${Math.round(m.costPoints)} / 15`],
+    ["Right model · recoverable", `${sharePct(m.rightModelPct)} · ${compactMoney(m.recoverableUSD)}`],
+    ["Context / turn · churn", `${formatTokens(m.contextPerTurn)} · ${sharePct(m.churn)}`],
+    ["Context share · cache hit", `${sharePct(m.contextShare)} · ${sharePct(m.cacheHitPct)}`],
+  ];
+  return `<div class="score-rows">${rows
+    .map(
+      ([name, value]) =>
+        `<div class="score-row"><span class="name">${escapeHtml(name)}</span><span class="val">${escapeHtml(value)}</span></div>`,
+    )
+    .join("")}</div>`;
+}
+
+function scoreEmpty(st: AppState): string {
   const claude = st.sources.find((s) => s.id === "claude");
   const on = claude?.enabled === true;
+  const title = on ? (st.refreshing ? "Reading local sessions" : "No scored sessions yet") : "Claude is off";
+  const body = on
+    ? st.refreshing
+      ? "Local Claude Code transcripts are being scored."
+      : "Model fit, context discipline, and cost hygiene appear once this month has Claude Code sessions."
+    : "Enable Claude to unlock the scoreboard.";
+  return `<div class="card stub">
+    <div class="stub-title">${title}</div>
+    <p class="muted">${body}</p>
+    <button class="btn${on ? "" : " primary"}" data-act="go" data-route="source:claude">Open Claude</button>
+  </div>`;
+}
+
+function efficiencyView(st: AppState): string {
+  const board = st.scoreboard;
+  if (!board) {
+    return `${noticeHtml()}${scoreHeader(false)}${scoreEmpty(st)}`;
+  }
   return `${noticeHtml()}
-    <h2 class="page-title">Efficiency</h2>
-    <p class="muted">Claude Code local analysis · estimates only.</p>
-    ${
-      on
-        ? `<div class="card stub">
-            <div class="stub-title">Scoreboard not wired in this build</div>
-            <p class="muted">Session scoring, streaks, and badges ship with the Efficiency engine. Open the Scoreboard tab for the full shell, or open Claude.</p>
-            <button class="btn" data-act="go" data-route="source:claude">Open Claude</button>
-          </div>`
-        : `<div class="card stub">
-            <div class="stub-title">Efficiency needs Claude</div>
-            <p class="muted">Turn on Claude and let local sessions accumulate, then scores appear here.</p>
-            <button class="btn primary" data-act="go" data-route="source:claude">Open Claude</button>
-          </div>`
-    }`;
+    ${scoreHeader(false)}
+    ${scoreHero(board)}
+    ${scoreRows(board)}
+    <p class="score-disclaimer">Cache hits are reported, not scored.</p>
+    <div class="score-tip">Use Sonnet for routine work; reserve Opus for hard problems.</div>
+    <button class="btn" data-act="go" data-route="scoreboard">Open full Scoreboard</button>`;
 }
 
 function scoreboardView(st: AppState): string {
-  const claude = st.sources.find((s) => s.id === "claude");
-  const on = claude?.enabled === true;
+  const board = st.scoreboard;
+  if (!board) {
+    return `${noticeHtml()}${scoreHeader(true)}${scoreEmpty(st)}`;
+  }
+  const spark = board.sparkScores
+    .map((value) => `<span class="spark-bar" style="height:${Math.max(1, value * 0.7)}px" title="Score ${value}"></span>`)
+    .join("");
+  const badges = board.badges
+    .map(
+      (b) => `<div class="achieve ${b.earned ? "on" : "off"}">
+        <div class="ach-name"><span class="ach-mark">${b.earned ? "✓" : "○"}</span>${escapeHtml(b.name)}</div>
+        <div class="ach-detail">${escapeHtml(b.detail)}</div>
+      </div>`,
+    )
+    .join("");
+  const offenders = board.offenders
+    .map(
+      (o) => `<div class="score-note-block">
+        <div>${escapeHtml(o.label)}</div>
+        <div class="muted">${escapeHtml(o.reason)} · ${escapeHtml(compactMoney(o.opusUSD))} → ${escapeHtml(compactMoney(o.sonnetUSD))} · save ${escapeHtml(compactMoney(o.savingsUSD))}</div>
+      </div>`,
+    )
+    .join("");
+  const bloated = board.bloated
+    .map(
+      (b) => `<div class="score-row"><span class="name">${escapeHtml(b.label)}</span><span class="val">${escapeHtml(formatTokens(b.contextPerTurn))}/turn · ${escapeHtml(compactMoney(b.costUSD))}</span></div>`,
+    )
+    .join("");
   return `${noticeHtml()}
-    <h2 class="page-title">Efficiency Scoreboard</h2>
-    <p class="muted">Claude Code local analysis · estimate disclaimer.</p>
-    <div class="metrics">
-      <div class="metric stub-metric"><div class="k">Efficiency grade</div><div class="v cyan">—</div><div class="muted">/100</div></div>
-      <div class="metric stub-metric"><div class="k">Current streak</div><div class="v">—</div><div class="muted">days ≥80</div></div>
-    </div>
-    <div class="card stub">
-      <div class="stub-title">${on ? "No scored sessions yet" : "Claude is off"}</div>
-      <p class="muted">${
-        on
-          ? "Model fit, context discipline, and cost hygiene rows appear once local Claude Code sessions are analyzed."
-          : "Enable Claude to unlock the scoreboard."
-      }</p>
-      <button class="btn" data-act="go" data-route="source:claude">Open Claude</button>
-    </div>
-    <h3>Badges</h3>
-    <div class="badge-grid">
-      ${["Cache Master", "Sonnet Saver", "Right Model", "Lean Context", "7-Day Streak", "30-Day Streak", "Personal Best"]
-        .map((b) => `<div class="achieve off"><span class="ach-mark">○</span>${escapeHtml(b)}</div>`)
-        .join("")}
-    </div>`;
+    ${scoreHeader(true)}
+    ${scoreHero(board)}
+    ${scoreRows(board)}
+    <p class="score-disclaimer">Cache hits are reported, not scored.</p>
+    ${
+      spark
+        ? `<h3 class="score-heading">Recent score history</h3>
+           <div class="spark">${spark}</div>
+           <p class="score-disclaimer">Last ${board.sparkScores.length} recorded days · score out of 100</p>`
+        : ""
+    }
+    <h3 class="score-heading">Badges</h3>
+    <div class="badge-grid">${badges}</div>
+    ${offenders ? `<h3 class="score-heading">Opus on routine work</h3>${offenders}` : ""}
+    ${bloated ? `<h3 class="score-heading">Heaviest context per turn</h3><div class="score-rows">${bloated}</div>` : ""}`;
 }
 
 function alertsView(): string {
@@ -898,7 +965,6 @@ function optionsView(st: AppState): string {
         <span class="settings-chevron" aria-hidden="true">›</span>
       </button>
       ${switchRow("login", "Open at login", p.openAtLogin)}
-      ${switchRow("themed-logos", "Themed provider logos", p.themedProviderLogos)}
       ${switchRow("spend-colors", "Spend colors", p.spendColorsEnabled)}
       ${switchRow("dark-bar", "Dark menu-bar background", p.darkBarBackground)}
       <div class="settings-row">
@@ -1096,17 +1162,6 @@ async function runAction(act: string, target: HTMLElement): Promise<void> {
       await api.refresh();
       await load(true);
       return;
-    case "save-allowance": {
-      const usd = Number(inputValue("opt-allowance"));
-      if (!Number.isFinite(usd) || usd <= 0) {
-        notice = { kind: "err", text: "Enter an allowance above $0." };
-      } else {
-        setNotice(await api.setPrefs({ cursorPersonalAllowanceUSD: usd }), "Could not save the allowance.");
-        if (notice === null) notice = { kind: "ok", text: `Cursor allowance set to ${money(usd)}.` };
-      }
-      await load(true);
-      return;
-    }
     case "save-key": {
       const key = inputValue("opt-key");
       if (!key) {
@@ -1225,10 +1280,6 @@ async function runChange(act: string, target: HTMLInputElement | HTMLSelectEleme
       await api.setPrefs({ openAtLogin: (target as HTMLInputElement).checked });
       await load(true);
       return;
-    case "themed-logos":
-      await api.setPrefs({ themedProviderLogos: (target as HTMLInputElement).checked });
-      await load(true);
-      return;
     case "dark-bar":
       await api.setPrefs({ darkBarBackground: (target as HTMLInputElement).checked });
       await load(true);
@@ -1329,7 +1380,6 @@ el.inner.addEventListener("keydown", (e) => {
   const byInput: Record<string, string> = {
     "opt-key": "save-key",
     "opt-balance": "set-balance",
-    "opt-allowance": "save-allowance",
   };
   const act = byInput[e.target.id];
   if (act) {

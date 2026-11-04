@@ -13,7 +13,20 @@ export interface UsageRecord {
   cacheRead: number;
   output: number;
   sessionId: string;
+  /** tool_use blocks in this assistant message. Lightweight Opus turns have none. */
+  toolUseCount: number;
   dedupeKey: string;
+}
+
+/** Task label for a session. Stays on this machine. */
+export interface SessionMeta {
+  cwd: string;
+  firstPrompt: string;
+}
+
+export interface ClaudeScan {
+  records: UsageRecord[];
+  sessions: Record<string, SessionMeta>;
 }
 
 export interface ClaudeRollup {
@@ -82,14 +95,55 @@ export function parseTranscriptLine(obj: unknown): UsageRecord | undefined {
     cacheRead,
     output,
     sessionId: typeof line.sessionId === "string" ? line.sessionId : "",
+    toolUseCount: countToolUses(message),
     dedupeKey: `${messageId}:${requestId}`,
   };
+}
+
+function countToolUses(message: Record<string, unknown>): number {
+  const content = message.content;
+  if (!Array.isArray(content)) return 0;
+  let n = 0;
+  for (const block of content) {
+    if (typeof block === "object" && block !== null && (block as { type?: unknown }).type === "tool_use") {
+      n += 1;
+    }
+  }
+  return n;
+}
+
+/** First plain-text user prompt, matching the Swift transcript parser. */
+export function userPromptText(line: Record<string, unknown>): string {
+  const message = line.message;
+  if (typeof message !== "object" || message === null) return "";
+  const content = (message as Record<string, unknown>).content;
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+  for (const block of content) {
+    if (typeof block !== "object" || block === null) continue;
+    const b = block as Record<string, unknown>;
+    if (b.type === "text" && typeof b.text === "string") return b.text.trim();
+  }
+  return "";
+}
+
+export function absorbSessionMeta(line: Record<string, unknown>, sessions: Map<string, SessionMeta>): void {
+  const sessionId = typeof line.sessionId === "string" ? line.sessionId : "";
+  if (!sessionId) return;
+  const meta = sessions.get(sessionId) ?? { cwd: "", firstPrompt: "" };
+  if (!meta.cwd && typeof line.cwd === "string") meta.cwd = line.cwd;
+  if (!meta.firstPrompt && line.type === "user") {
+    const text = userPromptText(line);
+    if (text) meta.firstPrompt = text.slice(0, 120);
+  }
+  sessions.set(sessionId, meta);
 }
 
 interface FileCacheEntry {
   mtimeMs: number;
   size: number;
   records: UsageRecord[];
+  sessions: Record<string, SessionMeta>;
 }
 
 /**
@@ -99,8 +153,14 @@ interface FileCacheEntry {
  */
 export class ClaudeTranscriptScanner {
   private cache = new Map<string, FileCacheEntry>();
+  private scan: ClaudeScan = { records: [], sessions: {} };
 
   constructor(private readonly pricing: Pricing) {}
+
+  /** Deduped records and session labels from the latest rollup. */
+  lastScan(): ClaudeScan {
+    return this.scan;
+  }
 
   async rollup(now: Date = new Date()): Promise<ClaudeRollup> {
     const roots = claudeProjectRoots();
@@ -110,17 +170,32 @@ export class ClaudeTranscriptScanner {
 
     const live = new Set<string>();
     const records: UsageRecord[] = [];
+    const sessions = new Map<string, SessionMeta>();
     for (const { file, stat } of files) {
       live.add(file);
       let entry = this.cache.get(file);
       if (!entry || entry.mtimeMs !== stat.mtimeMs || entry.size !== stat.size) {
-        entry = { mtimeMs: stat.mtimeMs, size: stat.size, records: await parseFile(file) };
+        entry = { mtimeMs: stat.mtimeMs, size: stat.size, ...(await parseFile(file)) };
         this.cache.set(file, entry);
       }
       records.push(...entry.records);
+      for (const [id, meta] of Object.entries(entry.sessions)) {
+        const cur = sessions.get(id) ?? { cwd: "", firstPrompt: "" };
+        if (!cur.cwd && meta.cwd) cur.cwd = meta.cwd;
+        if (!cur.firstPrompt && meta.firstPrompt) cur.firstPrompt = meta.firstPrompt;
+        sessions.set(id, cur);
+      }
     }
     for (const key of this.cache.keys()) if (!live.has(key)) this.cache.delete(key);
 
+    const seen = new Set<string>();
+    const unique: UsageRecord[] = [];
+    for (const rec of records) {
+      if (seen.has(rec.dedupeKey)) continue;
+      seen.add(rec.dedupeKey);
+      unique.push(rec);
+    }
+    this.scan = { records: unique, sessions: Object.fromEntries(sessions) };
     return summarize(records, this.pricing, now, files.length, roots);
   }
 }
@@ -152,26 +227,31 @@ async function walk(
   }
 }
 
-async function parseFile(file: string): Promise<UsageRecord[]> {
+async function parseFile(file: string): Promise<{ records: UsageRecord[]; sessions: Record<string, SessionMeta> }> {
   let text: string;
   try {
     text = await fs.promises.readFile(file, "utf8");
   } catch {
-    return [];
+    return { records: [], sessions: {} };
   }
-  const out: UsageRecord[] = [];
+  const records: UsageRecord[] = [];
+  const sessions = new Map<string, SessionMeta>();
   for (const line of text.split("\n")) {
-    if (!line.includes('"usage"')) continue;
+    if (!line.includes('"usage"') && !line.includes('"sessionId"')) continue;
     let obj: unknown;
     try {
       obj = JSON.parse(line);
     } catch {
       continue;
     }
+    if (typeof obj !== "object" || obj === null) continue;
+    const row = obj as Record<string, unknown>;
+    absorbSessionMeta(row, sessions);
+    if (!line.includes('"usage"')) continue;
     const rec = parseTranscriptLine(obj);
-    if (rec) out.push(rec);
+    if (rec) records.push(rec);
   }
-  return out;
+  return { records, sessions: Object.fromEntries(sessions) };
 }
 
 export function summarize(

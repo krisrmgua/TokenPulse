@@ -24,7 +24,6 @@ const PASTEL = {
 };
 
 const INK: RGB = [237, 245, 255];
-const CYAN: RGB = [88, 210, 236];
 
 /** Default monthly red caps (Swift Config / ChatGPT Pro equivalent). */
 export const POLICY_CAP: Record<string, number> = {
@@ -70,10 +69,10 @@ export function dailyCap(monthCap: number, now = new Date()): number {
 
 export function barColor(
   level: SpendLevel,
-  opts: { spendColorsEnabled: boolean; pastelBarColors: boolean; themedProviderLogos?: boolean },
+  opts: { spendColorsEnabled: boolean; pastelBarColors: boolean },
 ): RGB {
   if (!opts.spendColorsEnabled || level === "normal") {
-    return opts.themedProviderLogos ? CYAN : INK;
+    return INK;
   }
   const p = opts.pastelBarColors ? PASTEL : BRIGHT;
   switch (level) {
@@ -91,7 +90,7 @@ export function barColor(
 export function tintSpendUSD(
   usd: number,
   sourceId: string,
-  prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean; themedProviderLogos?: boolean },
+  prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean },
   kind: "day" | "month",
 ): RGB {
   const cap = POLICY_CAP[sourceId] ?? 1500;
@@ -110,7 +109,7 @@ export function tintCombinedSpendUSD(
   usd: number,
   kind: "day" | "month",
   workSources: { id: string; enabled: boolean; account: string }[],
-  prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean; themedProviderLogos?: boolean },
+  prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean },
   now = new Date(),
 ): RGB {
   if (!prefs.spendColorsEnabled) return INK;
@@ -128,7 +127,7 @@ export function tintCombinedSpendUSD(
 
 export function tintRemainingPct(
   percentLeft: number,
-  prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean; themedProviderLogos?: boolean },
+  prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean },
 ): RGB {
   return barColor(levelRemainingDown(percentLeft), prefs);
 }
@@ -136,7 +135,7 @@ export function tintRemainingPct(
 /** OpenAI prepaid balance remaining — Swift defaults $5 / $20 / $50. */
 export function tintBalanceUSD(
   usd: number,
-  prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean; themedProviderLogos?: boolean },
+  prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean },
 ): RGB {
   const level: SpendLevel =
     usd <= 5 ? "over" : usd <= 20 ? "warning" : usd <= 50 ? "caution" : "good";

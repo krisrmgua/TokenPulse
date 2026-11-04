@@ -437,6 +437,12 @@ h3 {
   align-self: stretch;
 }
 
+.card.card-auto {
+  min-height: 0;
+  height: auto;
+  flex: none;
+}
+
 .card.off {
   opacity: 0.7;
 }
@@ -1074,6 +1080,114 @@ input[type="number"] {
   font-size: 13px;
 }
 
+.score-disclaimer {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.score-hero {
+  display: flex;
+  gap: 12px;
+}
+
+.score-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.score-card .k,
+.score-card .sub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.score-card .sub {
+  font-size: 11px;
+}
+
+.score-card .v {
+  color: var(--ink);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-card .v.cyan {
+  color: var(--cyan);
+}
+
+.score-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.score-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 16%, transparent);
+  font-size: 12px;
+}
+
+.score-row .name {
+  color: var(--muted);
+}
+
+.score-row .val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-tip {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 70px;
+}
+
+.spark-bar {
+  flex: 1;
+  min-width: 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--cyan) 70%, transparent);
+}
+
+h3.score-heading {
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.score-note-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  font-size: 12px;
+}
+
 .stub-metric .v.cyan {
   color: var(--cyan);
   font-size: 28px;
@@ -1087,13 +1201,25 @@ input[type="number"] {
 
 .achieve {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 10px;
   background: var(--panel);
   font-size: 12px;
+}
+
+.ach-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.ach-detail {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .achieve.off {

@@ -213,7 +213,7 @@ function togglePanel(): void {
 function withIcons(st: AppState): AppState {
   return {
     ...st,
-    icons: providerIconMap(64, st.prefs.themedProviderLogos),
+    icons: providerIconMap(64),
   };
 }
 
@@ -304,7 +304,6 @@ function wireIpc(): void {
       refreshMinutes: patch.refreshMinutes,
       cursorPersonalAllowanceUSD: patch.cursorPersonalAllowanceUSD,
       openAtLogin: patch.openAtLogin,
-      themedProviderLogos: patch.themedProviderLogos,
       darkBarBackground: patch.darkBarBackground,
       menuBarScale: patch.menuBarScale,
       spendColorsEnabled: patch.spendColorsEnabled,

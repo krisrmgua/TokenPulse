@@ -10,57 +10,39 @@ function providersDir(): string {
   return path.join(app.getAppPath(), "menubar", "Artwork", "providers");
 }
 
-function providerFile(id: SourceId, themed: boolean): string {
-  const name = themed ? `${id}-themed.png` : `${id}.png`;
-  return path.join(providersDir(), name);
+function providerFile(id: SourceId): string {
+  return path.join(providersDir(), `${id}.png`);
 }
 
-/** data: URL of the Swift-exported ProviderArtwork PNG (64×64). */
-export function providerIconDataUrl(id: SourceId, _size: number, themed: boolean): string {
-  const key = `${id}:${themed ? "t" : "p"}`;
-  const hit = CACHE.get(key);
+/** data: URL of the plain provider mark (64×64). */
+export function providerIconDataUrl(id: SourceId, _size: number): string {
+  const hit = CACHE.get(id);
   if (hit) return hit;
-  const file = providerFile(id, themed);
-  if (!fs.existsSync(file)) {
-    // Fall back to themed/plain sibling if one set is missing.
-    const alt = providerFile(id, !themed);
-    if (!fs.existsSync(alt)) return "";
-    const b64 = fs.readFileSync(alt).toString("base64");
-    const url = `data:image/png;base64,${b64}`;
-    CACHE.set(key, url);
-    return url;
-  }
+  const file = providerFile(id);
+  if (!fs.existsSync(file)) return "";
   const url = `data:image/png;base64,${fs.readFileSync(file).toString("base64")}`;
-  CACHE.set(key, url);
+  CACHE.set(id, url);
   return url;
 }
 
-export function providerIconMap(
-  size: number,
-  themed: boolean,
-): Record<SourceId, string> {
+export function providerIconMap(size: number): Record<SourceId, string> {
   return {
-    chatgpt: providerIconDataUrl("chatgpt", size, themed),
-    cursor: providerIconDataUrl("cursor", size, themed),
-    grokbot: providerIconDataUrl("grokbot", size, themed),
-    openai: providerIconDataUrl("openai", size, themed),
-    claude: providerIconDataUrl("claude", size, themed),
+    chatgpt: providerIconDataUrl("chatgpt", size),
+    cursor: providerIconDataUrl("cursor", size),
+    grokbot: providerIconDataUrl("grokbot", size),
+    openai: providerIconDataUrl("openai", size),
+    claude: providerIconDataUrl("claude", size),
   };
 }
 
 /**
  * RGBA buffer for tray compositing — Swift PNGs resized to `size`.
  */
-export function providerIconRgba(
-  id: SourceId,
-  size: number,
-  themed: boolean,
-): Buffer {
-  const file = providerFile(id, themed);
-  const pathToUse = fs.existsSync(file) ? file : providerFile(id, !themed);
+export function providerIconRgba(id: SourceId, size: number): Buffer {
+  const file = providerFile(id);
   const rgba = Buffer.alloc(size * size * 4);
-  if (!fs.existsSync(pathToUse)) return rgba;
-  const img = nativeImage.createFromPath(pathToUse);
+  if (!fs.existsSync(file)) return rgba;
+  const img = nativeImage.createFromPath(file);
   if (img.isEmpty()) return rgba;
   const resized = img.resize({ width: size, height: size, quality: "best" });
   const { width, height } = resized.getSize();

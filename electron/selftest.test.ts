@@ -11,7 +11,9 @@ import {
   shortMoney,
   barMoney,
   barPercent,
+  dayString,
   displayDate,
+  formatTokens,
   startOfNextMonth,
 } from "./format";
 import { parseAggregations, parsePlanUsage, parseTotalSpendUSD, cursorPersonalPercentLeft } from "./sources/cursor";
@@ -19,6 +21,8 @@ import { parseSandUsage } from "./sources/grokbot";
 import { parseRateLimits, parseWorkUsage, workEstimatedUSD, workTodayIsPending } from "./sources/chatgpt";
 import { parseCostPage, requestURL, totalUSD, lineItems, estimateBalance } from "./sources/openai";
 import { parseTranscriptLine, summarize } from "./sources/claude";
+import { contextFromAggs, gradeFor, modelFitFromAggs, type SessionAgg } from "./efficiency";
+import { ScoreHistory } from "./scoreHistory";
 import {
   claudeResetDate,
   isCompleteResetDescription,
@@ -195,7 +199,7 @@ test("fresh defaults are off and personal", () => {
   assert.equal(prefs.sources.grokbot.account, "personal");
   assert.equal(prefs.sources.openai.account, "work");
   assert.equal(prefs.sources.openai.showBalanceInBar, true);
-  assert.equal(prefs.sources.claude.sharedPill, true);
+  assert.equal(prefs.sources.claude.sharedPill, false);
   assert.equal(prefs.menuBarScale, 100);
   assert.equal(prefs.sharedRingLetters, false);
 });
@@ -216,6 +220,7 @@ test("cursor menu bar marks the monthly allowance as M", () => {
     lines: [],
     credential: "",
   };
+  prefs.sources.cursor.sharedPill = true;
   assert.deepEqual(
     blocksFromSources([snap], prefs)[0].metrics.map((m) => m.label),
     ["M"],
@@ -253,7 +258,7 @@ test("menu bar labels the five-hour window as 5", () => {
   );
 });
 
-test("a missing shared pill turns on without resetting provider flags", () => {
+test("a missing shared pill stays off without resetting provider flags", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tp-prefs-"));
   const file = path.join(dir, "prefs.json");
   const raw = defaultPrefs();
@@ -268,7 +273,7 @@ test("a missing shared pill turns on without resetting provider flags", () => {
   const store = new PrefsStore(file);
   assert.equal(store.get().sources.claude.enabled, true);
   assert.equal(store.get().sources.claude.showInTray, true);
-  assert.equal(store.get().sources.claude.sharedPill, true);
+  assert.equal(store.get().sources.claude.sharedPill, false);
   assert.equal(store.get().sources.cursor.enabled, false);
   assert.equal(store.get().sources.cursor.barDesign, "rings");
   store.setSource("cursor", { sharedPill: false });
@@ -397,6 +402,111 @@ test("claude transcript lines and rollup", () => {
   assert.equal(r.todayUSD, 5);
   assert.equal(r.opusUSD, 5);
   assert.equal(r.sessions, 1);
+  const withTool = parseTranscriptLine({
+    message: {
+      usage: { output_tokens: 10 },
+      content: [{ type: "text" }, { type: "tool_use" }],
+    },
+  });
+  assert.equal(withTool?.toolUseCount, 1);
+});
+
+function agg(partial: Partial<SessionAgg> & Pick<SessionAgg, "id">): SessionAgg {
+  return {
+    cwd: "",
+    firstPrompt: "",
+    turns: 0,
+    input: 0,
+    cacheWrite: 0,
+    cacheRead: 0,
+    output: 0,
+    toolUses: 0,
+    models: [],
+    totalCost: 0,
+    opusCost: 0,
+    opusAsSonnetCost: 0,
+    lightTurns: 0,
+    lightOpusCost: 0,
+    lightOpusAtSonnet: 0,
+    ...partial,
+  };
+}
+
+test("efficiency grade, model fit, and context match the swift scoreboard", () => {
+  assert.equal(gradeFor(63), "D");
+  assert.equal(gradeFor(80), "B");
+  assert.equal(gradeFor(90), "A");
+  assert.equal(gradeFor(59), "F");
+  assert.equal(formatTokens(808_000), "808k");
+
+  const light = agg({
+    id: "s1",
+    cwd: "/Users/x/money-frontend",
+    firstPrompt: "rename variable across files",
+    turns: 10,
+    models: ["claude-opus-4-8"],
+    opusCost: 4,
+    totalCost: 4,
+    lightTurns: 5,
+    lightOpusCost: 1.2,
+    lightOpusAtSonnet: 0.72,
+  });
+  const hard = agg({
+    id: "s2",
+    firstPrompt: "refactor the auth architecture",
+    turns: 20,
+    output: 50_000,
+    models: ["claude-opus-4-8"],
+    opusCost: 37.2,
+    totalCost: 37.2,
+  });
+  const fit = modelFitFromAggs([light, hard], 41.2);
+  assert.equal(fit.offenders.length, 1);
+  assert.match(fit.offenders[0]!.label, /money-frontend/);
+  assert.match(fit.offenders[0]!.reason, /5 of 10/);
+  assert.ok(Math.abs(fit.offenders[0]!.savingsUSD - 0.48) < 0.001);
+  assert.ok(Math.abs(fit.recoverableUSD - 0.48) < 0.001);
+  assert.ok(Math.abs(fit.lightTurnShare - 5 / 30) < 0.001);
+  assert.ok(Math.abs(fit.rightModelPct - (1 - 1.2 / 41.2)) < 0.001);
+
+  const bloat = agg({
+    id: "s3",
+    turns: 1,
+    cacheRead: 480_000,
+    cacheWrite: 20_000,
+    totalCost: 2,
+  });
+  const ctx = contextFromAggs([bloat], 2, new Pricing([]));
+  assert.equal(ctx.bigReadFlag, true);
+  assert.ok(Math.abs(ctx.churn - 0.04) < 0.001);
+});
+
+test("score history streak, best, and week trend", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tp-score-"));
+  const history = new ScoreHistory(path.join(dir, "history.json"));
+  const today = new Date(2026, 5, 17);
+  for (let i = 0; i < 8; i++) {
+    const day = new Date(2026, 5, 17 - i);
+    history.record(
+      { score: 85, costMTD: 100, cacheHitPct: 0.9, opusShare: 0.3, modelFitPct: 0.95 },
+      dayString(day),
+    );
+  }
+  assert.equal(history.streak(80, today), 8);
+  assert.equal(history.personalBest(), 85);
+  assert.equal(history.trend7d(today), 0);
+
+  const later = new ScoreHistory(path.join(dir, "trend.json"));
+  later.record(
+    { score: 97, costMTD: 1, cacheHitPct: 0.9, opusShare: 0.1, modelFitPct: 0.9 },
+    "2026-10-28",
+  );
+  later.record(
+    { score: 63, costMTD: 1, cacheHitPct: 0.95, opusShare: 0.1, modelFitPct: 0.98 },
+    "2026-11-04",
+  );
+  assert.equal(later.trend7d(new Date(2026, 10, 4)), -34);
+  assert.equal(later.spark().join(","), "97,63");
 });
 
 test("cursor credential classification and plaintext passthrough", async () => {
@@ -441,7 +551,7 @@ test("menu bar size steps from normal to micro, including compact stack", () => 
     percent: 80,
     color: [88, 210, 236] as [number, number, number],
   };
-  const base = { darkBarBackground: true, themedProviderLogos: false, menuBarScale: 100 as const };
+  const base = { darkBarBackground: true, menuBarScale: 100 as const };
   const block = {
     id: "claude" as const,
     metrics: [metric],
@@ -472,7 +582,7 @@ test("shared pill joins providers and labels only the extra rings", () => {
     color: [88, 210, 236] as [number, number, number],
   };
   const week = { ...metric, label: "W", value: "40%", percent: 40 };
-  const prefs = { darkBarBackground: true, themedProviderLogos: false, menuBarScale: 100 as const };
+  const prefs = { darkBarBackground: true, menuBarScale: 100 as const };
   const block = (
     id: "claude" | "cursor" | "openai",
     metrics: (typeof metric)[],
@@ -517,7 +627,7 @@ test("divider stays text and baseline keeps the underline meter", () => {
     percent: 80,
     color: [88, 210, 236] as [number, number, number],
   };
-  const prefs = { darkBarBackground: true, themedProviderLogos: false };
+  const prefs = { darkBarBackground: true };
   const block = {
     id: "claude" as const,
     metrics: [metric, { ...metric, label: "W", value: "40%", percent: 40 }],
@@ -536,7 +646,7 @@ test("segmented lanes cut the meter into dashes", () => {
     percent: 80,
     color: [88, 210, 236] as [number, number, number],
   };
-  const prefs = { darkBarBackground: true, themedProviderLogos: false };
+  const prefs = { darkBarBackground: true };
   const block = {
     id: "claude" as const,
     metrics: [metric, { ...metric, label: "W", value: "40%", percent: 40 }],

@@ -53,6 +53,14 @@ export function barMoney(usd: number): string {
   return `$${(usd / 1_000_000).toFixed(1)}M`;
 }
 
+/** Compact token counts: 940, 44k, 808k, 1.2M. Matches Swift `Fmt.tokens`. */
+export function formatTokens(v: number): string {
+  const a = Math.abs(v);
+  if (a < 1_000) return `${Math.round(v)}`;
+  if (a < 1_000_000) return `${Math.round(v / 1_000)}k`;
+  return `${(v / 1_000_000).toFixed(1)}M`;
+}
+
 export function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
