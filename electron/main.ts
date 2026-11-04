@@ -9,9 +9,11 @@ import {
   screen,
   shell,
 } from "electron";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { Engine } from "./engine";
 import { SpendLedger } from "./ledger";
 import { OpenAIKeyStore } from "./openaiAdmin";
@@ -33,6 +35,8 @@ import {
   type SourceId,
   type SourcePrefs,
 } from "./types";
+
+const execFileAsync = promisify(execFile);
 
 const isDev = process.env.TOKENPULSE_DEV === "1";
 const PANEL_WIDTH = 780;
@@ -64,6 +68,66 @@ function notificationIcon(): Electron.NativeImage {
     if (!img.isEmpty()) return img;
   }
   return nativeImage.createFromBuffer(renderMark({ size: 128, variant: "app" }));
+}
+
+/** Swift menu-bar binary — its UNUserNotificationCenter path is what works on this Mac. */
+function swiftNotificationBinary(): string | null {
+  const home = os.homedir();
+  const candidates = [
+    path.join(home, "Applications", "TokenPulse-Swift.app", "Contents", "MacOS", "TokenPulse"),
+    path.join(app.getAppPath(), "menubar", "TokenPulse-Swift.app", "Contents", "MacOS", "TokenPulse"),
+    path.join(app.getAppPath(), "menubar", "TokenPulse.app", "Contents", "MacOS", "TokenPulse"),
+  ];
+  return candidates.find((file) => fs.existsSync(file)) ?? null;
+}
+
+async function sendViaSwiftPreview(): Promise<ActionResult | null> {
+  const bin = swiftNotificationBinary();
+  if (!bin) return null;
+  try {
+    const { stdout, stderr } = await execFileAsync(bin, ["--notification-preview"], {
+      timeout: 12_000,
+      encoding: "utf8",
+    });
+    if ((stdout || "").includes("queued") || (stdout || "").includes("preview")) {
+      return { ok: true, message: "Test notification sent." };
+    }
+    if (stderr && /Enable TokenPulse notifications/i.test(stderr)) {
+      return {
+        ok: false,
+        message:
+          "Enable TokenPulse-Swift in System Settings → Notifications, then try again.",
+      };
+    }
+    return { ok: true, message: "Test notification sent." };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/Enable TokenPulse notifications/i.test(msg) || /exit code 2/i.test(msg)) {
+      return {
+        ok: false,
+        message:
+          "Enable TokenPulse-Swift in System Settings → Notifications, then try again.",
+      };
+    }
+    return null;
+  }
+}
+
+async function sendViaOsascript(body: string): Promise<boolean> {
+  if (process.platform !== "darwin") return false;
+  try {
+    await execFileAsync(
+      "osascript",
+      [
+        "-e",
+        `display notification ${JSON.stringify(body)} with title "TokenPulse" subtitle "Notification preview"`,
+      ],
+      { timeout: 5000 },
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function panelUrl(): string {
@@ -333,38 +397,60 @@ function wireIpc(): void {
   });
 
   ipcMain.handle("tp:sendTestNotification", async (): Promise<ActionResult> => {
-    if (!Notification.isSupported()) {
-      return { ok: false, message: "Notifications are not available on this system." };
-    }
-
-    // macOS suppresses banners for the focused app (Swift sets willPresent; Electron
-    // does not). Hide the panel first so the preview can actually appear.
-    if (panel && !panel.isDestroyed() && panel.isFocused()) {
-      panel.hide();
-      await new Promise((r) => setTimeout(r, 150));
-    }
-
-    const sound = prefs.get().notificationSounds;
     const body =
       "Allowance alerts use this icon and include the provider, window and reset time.";
-    // Write a temp PNG so macOS UNNotification gets a real file path (NativeImage
-    // alone is flaky on ad-hoc LSUIElement builds).
-    const icon = notificationIcon();
-    const iconPath = path.join(os.tmpdir(), "tokenpulse-notification-icon.png");
-    try {
-      fs.writeFileSync(iconPath, icon.toPNG());
-    } catch {
-      /* still try with NativeImage */
+
+    // macOS suppresses banners for the frontmost app. Always drop the panel first.
+    if (panel && !panel.isDestroyed() && panel.isVisible()) {
+      panel.hide();
+      await new Promise((r) => setTimeout(r, 200));
     }
-    activeNotification = new Notification({
-      title: "TokenPulse",
-      subtitle: "Notification preview",
-      body,
-      silent: !sound,
-      icon: fs.existsSync(iconPath) ? iconPath : icon,
-    });
-    activeNotification.show();
-    return { ok: true, message: "Test notification sent." };
+
+    // 1) Swift UNUserNotificationCenter helper — proven to banner on this machine.
+    const viaSwift = await sendViaSwiftPreview();
+    if (viaSwift) return viaSwift;
+
+    // 2) Electron Notification (needs permission for com.kris.tokenpulse).
+    if (Notification.isSupported()) {
+      const sound = prefs.get().notificationSounds;
+      const icon = notificationIcon();
+      const iconPath = path.join(os.tmpdir(), "tokenpulse-notification-icon.png");
+      try {
+        fs.writeFileSync(iconPath, icon.toPNG());
+      } catch {
+        /* NativeImage fallback below */
+      }
+      activeNotification = new Notification({
+        title: "TokenPulse",
+        subtitle: "Notification preview",
+        body,
+        silent: !sound,
+        icon: fs.existsSync(iconPath) ? iconPath : icon,
+      });
+      const shown = await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const done = (ok: boolean) => {
+          if (settled) return;
+          settled = true;
+          resolve(ok);
+        };
+        activeNotification!.once("show", () => done(true));
+        activeNotification!.show();
+        setTimeout(() => done(false), 1200);
+      });
+      if (shown) return { ok: true, message: "Test notification sent." };
+    }
+
+    // 3) Last resort — visible, but no TokenPulse icon.
+    if (await sendViaOsascript(body)) {
+      return { ok: true, message: "Test notification sent." };
+    }
+
+    return {
+      ok: false,
+      message:
+        "Could not show a notification. Enable TokenPulse in System Settings → Notifications, then try again.",
+    };
   });
 
   ipcMain.handle("tp:hide", () => panel?.hide());
