@@ -13,18 +13,16 @@ const TRACK = "rgb(59, 82, 99)";
 const LABEL = "rgb(153, 173, 199)";
 
 /**
- * Match Swift StatusBarArtwork `$` (short stroke). Do not list Helvetica Neue /
- * system-ui / Menlo — napi-rs was resolving those and painting a full-bar `$`.
- *   value = monospacedDigitSystemFont(..., .semibold)
- *   label = systemFont(..., .semibold)
+ * Swift StatusBarArtwork fonts. Keep Helvetica/system-ui/Menlo out of the stack
+ * (full-bar `$`). Single-line uses the larger 12/11 pair so the tray matches
+ * the pre-shrink look; stacked stays 11/10.
  */
-const VALUE_SF =
-  '600 11px ".AppleSystemUIFontMonospacedDigit", -apple-system, "SF Pro Text"';
-const LABEL_SF = '600 10px -apple-system, "SF Pro Text"';
-const VALUE_FONT_STACKED = VALUE_SF;
-const LABEL_FONT_STACKED = LABEL_SF;
-const VALUE_FONT = VALUE_SF;
-const LABEL_FONT = LABEL_SF;
+const VALUE_FONT =
+  '600 12px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT = '600 11px "SF Pro Text", -apple-system';
+const VALUE_FONT_STACKED =
+  '600 11px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT_STACKED = '600 10px "SF Pro Text", -apple-system';
 
 const iconCache = new Map<string, Image>();
 
@@ -231,14 +229,17 @@ export function renderStatusBarPng(
       const color = rgb(m.color);
 
       if (isStacked(b.design)) {
-        // Two rows: even top/bottom pad in the 24pt chrome (pitch 10 → start 2).
-        const rowPitch = b.metrics.length <= 1 ? 0 : 10;
-        const stackH = (b.metrics.length - 1) * rowPitch + 10;
+        // Swift pitch 11; alphabetic baseline so D/M share a line with $ amounts.
+        const rowPitch = b.metrics.length <= 1 ? 0 : 11;
+        const rowBody = 11;
+        const stackH = (b.metrics.length - 1) * rowPitch + rowBody;
         const stackTop = y0 + (bh - stackH) / 2;
-        const rowY = b.metrics.length === 1 ? y0 + (bh - 10) / 2 : stackTop + mi * rowPitch;
+        const rowY = b.metrics.length === 1 ? y0 + (bh - rowBody) / 2 : stackTop + mi * rowPitch;
+        const baseline = rowY + 9;
+        ctx.textBaseline = "alphabetic";
         ctx.fillStyle = LABEL;
         ctx.font = labelFontPx;
-        ctx.fillText(m.label, pt(cursor), pt(rowY));
+        ctx.fillText(m.label, pt(cursor), pt(baseline));
         let valueX = cursor + labelColW + 4;
         if ((b.design === "lanes" || b.design === "segments") && m.percent !== undefined) {
           const mw = 54;
@@ -254,10 +255,10 @@ export function renderStatusBarPng(
           }
           valueX += 60;
         }
-        // Left-align values so stacked `$` share one column ($91 / $104).
         ctx.fillStyle = color;
         ctx.font = valueFontPx;
-        ctx.fillText(m.value, pt(valueX), pt(rowY));
+        ctx.fillText(m.value, pt(valueX), pt(baseline));
+        ctx.textBaseline = "top";
         return;
       }
 
@@ -300,9 +301,8 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Baseline stays top-anchored for the under-meter. Divider / rings / focus:
-      // canvas SF at Swift's top y (y0+4) sits ~5px high vs the icon — use middle
-      // +1pt so digit mass matches the mark center.
+      // Shared alphabetic baseline so D/M and $ amounts sit on one line.
+      // ~68% down the chrome centers 12pt caps beside the 18pt mark.
       if (b.design === "baseline") {
         const rowY = y0 + 3;
         ctx.textBaseline = "top";
@@ -313,14 +313,14 @@ export function renderStatusBarPng(
         ctx.font = valueFontPx;
         ctx.fillText(m.value, pt(cursor + labelW + 4), pt(rowY - 2));
       } else {
-        const midY = y0 + bh / 2 + 1;
-        ctx.textBaseline = "middle";
+        const baselineY = y0 + Math.round(bh * 0.68);
+        ctx.textBaseline = "alphabetic";
         ctx.fillStyle = LABEL;
         ctx.font = labelFontPx;
-        ctx.fillText(m.label, pt(cursor), pt(midY));
+        ctx.fillText(m.label, pt(cursor), pt(baselineY));
         ctx.fillStyle = color;
         ctx.font = valueFontPx;
-        ctx.fillText(m.value, pt(cursor + labelW + 4), pt(midY));
+        ctx.fillText(m.value, pt(cursor + labelW + 4), pt(baselineY));
         ctx.textBaseline = "top";
       }
 
