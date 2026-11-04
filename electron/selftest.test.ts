@@ -22,6 +22,7 @@ import { parseTranscriptLine, summarize } from "./sources/claude";
 import { classifyCredential, decodeCredential, SAFE_STORAGE_PREFIX } from "./sources/cursorAuth";
 import { isValidAdminKeyFormat, OpenAIKeyStore } from "./openaiAdmin";
 import { renderMark } from "./iconRaster";
+import { tintCombinedSpendUSD } from "./spendTint";
 
 test("pricing resolves overrides, families, fallback", () => {
   const p = new Pricing([]);
@@ -227,4 +228,21 @@ test("openai admin key file is owner-only", () => {
 test("icon rasterizer emits a PNG", () => {
   const png = renderMark({ size: 32, variant: "tray" });
   assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+});
+
+test("combined spend tint mirrors Swift day vs month caps", () => {
+  const prefs = { spendColorsEnabled: true, pastelBarColors: false };
+  const work = [
+    { id: "cursor", enabled: true, account: "work" },
+    { id: "claude", enabled: true, account: "work" },
+  ];
+  // Nov has 30 days; cap 3000 → dailyCap 100. $94.48 is ≥75% → orange.
+  const now = new Date(2026, 10, 3);
+  assert.deepEqual(tintCombinedSpendUSD(94.48, "day", work, prefs, now), [255, 128, 0]);
+  assert.deepEqual(tintCombinedSpendUSD(107.3, "month", work, prefs, now), [48, 209, 88]);
+  assert.deepEqual(tintCombinedSpendUSD(1072.97, "month", work, prefs, now), [48, 209, 88]);
+  assert.deepEqual(
+    tintCombinedSpendUSD(94.48, "day", work, { ...prefs, spendColorsEnabled: false }, now),
+    [237, 245, 255],
+  );
 });
