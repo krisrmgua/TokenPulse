@@ -102,6 +102,30 @@ export function tintSpendUSD(
   return barColor(level, prefs);
 }
 
+/**
+ * Swift `combinedSpendColor` — sum work-source monthly caps; Today uses the
+ * day-scale of that sum, Month / Proj. eom use the full month sum.
+ */
+export function tintCombinedSpendUSD(
+  usd: number,
+  kind: "day" | "month",
+  workSources: { id: string; enabled: boolean; account: string }[],
+  prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean; themedProviderLogos?: boolean },
+  now = new Date(),
+): RGB {
+  if (!prefs.spendColorsEnabled) return INK;
+  let cap = 0;
+  for (const s of workSources) {
+    if (!s.enabled || s.account !== "work") continue;
+    if (s.id === "cursor" || s.id === "claude" || s.id === "chatgpt") {
+      cap += POLICY_CAP[s.id] ?? 0;
+    }
+  }
+  if (!(cap > 0)) return INK;
+  const effective = kind === "day" ? dailyCap(cap, now) : cap;
+  return barColor(levelSpendUp(usd, effective), prefs);
+}
+
 export function tintRemainingPct(
   percentLeft: number,
   prefs: { spendColorsEnabled: boolean; pastelBarColors: boolean; themedProviderLogos?: boolean },

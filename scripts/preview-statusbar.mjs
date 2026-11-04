@@ -85,6 +85,21 @@ const samples = [
       },
     ],
   },
+  {
+    name: "divider-zero",
+    blocks: [
+      {
+        id: "claude",
+        design: "divider",
+        stale: false,
+        allowanceEmpty: false,
+        metrics: [
+          { label: "D", value: "$0.00", color: [199, 245, 199] },
+          { label: "M", value: "$0.00", color: [199, 245, 199] },
+        ],
+      },
+    ],
+  },
 ];
 
 await warmStatusBarIcons(["cursor", "chatgpt", "claude"], false);

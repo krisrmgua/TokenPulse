@@ -1,6 +1,12 @@
 import { barDesignTitle, barDesignsFor, type BarDesign } from "../../electron/barDesign";
 import { displayDate } from "../../electron/format";
-import { POLICY_CAP, tintBalanceUSD, tintRemainingPct, tintSpendUSD } from "../../electron/spendTint";
+import {
+  POLICY_CAP,
+  tintBalanceUSD,
+  tintCombinedSpendUSD,
+  tintRemainingPct,
+  tintSpendUSD,
+} from "../../electron/spendTint";
 import type {
   AccountMode,
   ActionResult,
@@ -247,9 +253,12 @@ function rowsHtml(rows: [string, string][]): string {
     .join("")}</div>`;
 }
 
-function metricsHtml(items: [string, string][]): string {
+function metricsHtml(items: [string, string, string?][]): string {
   return `<div class="metrics">${items
-    .map(([k, v]) => `<div class="metric"><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div></div>`)
+    .map(([k, v, color]) => {
+      const style = color ? ` style="color:${color}"` : "";
+      return `<div class="metric"><div class="k">${escapeHtml(k)}</div><div class="v"${style}>${escapeHtml(v)}</div></div>`;
+    })
     .join("")}</div>`;
 }
 
@@ -471,11 +480,16 @@ function spendView(st: AppState): string {
       `<div class="note">Work spend shows once Claude, Cursor (work), or ChatGPT (work credits) has data.</div>`,
     );
   } else {
+    const prefs = st.prefs;
+    const sources = st.sources;
+    const dayTint = rgbCss(tintCombinedSpendUSD(st.combined.todayUSD, "day", sources, prefs));
+    const monthTint = rgbCss(tintCombinedSpendUSD(st.combined.monthUSD, "month", sources, prefs));
+    const projTint = rgbCss(tintCombinedSpendUSD(st.combined.projectedUSD, "month", sources, prefs));
     parts.push(
       metricsHtml([
-        ["Today", money(st.combined.todayUSD)],
-        ["Month to date", money(st.combined.monthUSD)],
-        ["Projected month-end", money(st.combined.projectedUSD)],
+        ["Today", money(st.combined.todayUSD), dayTint],
+        ["Month", money(st.combined.monthUSD), monthTint],
+        ["Proj. eom", money(st.combined.projectedUSD), projTint],
       ]),
     );
     if (st.chart.length > 0) {
@@ -771,12 +785,16 @@ function renderChips(st: AppState): void {
     return;
   }
   const active = route === "spend" ? " active" : "";
-  const chip = (k: string, v: number) =>
-    `<button class="chip${active}" data-act="go" data-route="spend"><span class="k">${k}</span><span class="v">${money(v)}</span></button>`;
+  const prefs = st.prefs;
+  const sources = st.sources;
+  const chip = (k: string, v: number, kind: "day" | "month") => {
+    const color = rgbCss(tintCombinedSpendUSD(v, kind, sources, prefs));
+    return `<button class="chip${active}" data-act="go" data-route="spend"><span class="k">${k}</span><span class="v" style="color:${color}">${money(v)}</span></button>`;
+  };
   el.chips.innerHTML =
-    chip("Today", st.combined.todayUSD) +
-    chip("Month", st.combined.monthUSD) +
-    chip("Proj. eom", st.combined.projectedUSD);
+    chip("Today", st.combined.todayUSD, "day") +
+    chip("Month", st.combined.monthUSD, "month") +
+    chip("Proj. eom", st.combined.projectedUSD, "month");
 }
 
 function renderSidebar(st: AppState): void {
