@@ -1,4 +1,4 @@
-import { barDesignsFor, type BarDesign } from "../../electron/barDesign";
+import { barDesignsFor, isStacked, type BarDesign } from "../../electron/barDesign";
 import { displayDate } from "../../electron/format";
 import {
   POLICY_CAP,
@@ -593,7 +593,8 @@ function providerOptionsPanel(st: AppState, id: SourceId, s: SourceSnapshot): st
     )}
   </div>`);
 
-  if (spendStyleOnly) {
+  // Compact stack is D+M by design — no per-line toggles. Divider can hide one.
+  if (spendStyleOnly && !isStacked(sp.barDesign)) {
     rows.push(
       switchRow(
         "daily-bar",
