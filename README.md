@@ -6,6 +6,58 @@ It is local-first. Claude, Cursor, ChatGPT, OpenAI API, and Grok Bot are separat
 
 The app is Electron. The original Swift menu-bar app is still in `menubar/` (see [Legacy Swift app](#legacy-swift-app)).
 
+
+## Screenshots
+
+Screenshots of the current Electron interface on macOS, using fictional projects, accounts, jobs, and values. No personal data or live credentials are used.
+
+<a href="docs/screenshots/overview.png"><img src="docs/screenshots/overview.png" alt="TokenPulse main view with sample data" width="780" /></a>
+
+The gallery includes detail views, settings, and available actions. Click an image for the full-resolution capture.
+
+<details>
+<summary>View all 16 screenshots</summary>
+
+| Menu Bar | Overview |
+| --- | --- |
+| <a href="docs/screenshots/menu-bar.png"><img src="docs/screenshots/menu-bar.png" alt="Actual menu-bar renderer with synthetic values, arranged on a presentation backdrop." width="360" /></a><br>Actual menu-bar renderer with synthetic values, arranged on a presentation backdrop. | <a href="docs/screenshots/overview.png"><img src="docs/screenshots/overview.png" alt="Overview with independent 5-hour and weekly allowance meters and sample work spend." width="360" /></a><br>Overview with independent 5-hour and weekly allowance meters and sample work spend. |
+
+| Chatgpt | Cursor |
+| --- | --- |
+| <a href="docs/screenshots/chatgpt.png"><img src="docs/screenshots/chatgpt.png" alt="Provider details and per-source menu-bar options: ChatGPT." width="360" /></a><br>Provider details and per-source menu-bar options: ChatGPT. | <a href="docs/screenshots/cursor.png"><img src="docs/screenshots/cursor.png" alt="Provider details and per-source menu-bar options: Cursor." width="360" /></a><br>Provider details and per-source menu-bar options: Cursor. |
+
+| Grokbot | Openai |
+| --- | --- |
+| <a href="docs/screenshots/grokbot.png"><img src="docs/screenshots/grokbot.png" alt="Provider details and per-source menu-bar options: Grok Bot." width="360" /></a><br>Provider details and per-source menu-bar options: Grok Bot. | <a href="docs/screenshots/openai.png"><img src="docs/screenshots/openai.png" alt="Provider details and per-source menu-bar options: OpenAI API." width="360" /></a><br>Provider details and per-source menu-bar options: OpenAI API. |
+
+| Openai Balance | Claude |
+| --- | --- |
+| <a href="docs/screenshots/openai-balance.png"><img src="docs/screenshots/openai-balance.png" alt="OpenAI balance baseline and credential guidance, scrolled below the key form." width="360" /></a><br>OpenAI balance baseline and credential guidance, scrolled below the key form. | <a href="docs/screenshots/claude.png"><img src="docs/screenshots/claude.png" alt="Provider details and per-source menu-bar options: Claude." width="360" /></a><br>Provider details and per-source menu-bar options: Claude. |
+
+| Spend | Efficiency |
+| --- | --- |
+| <a href="docs/screenshots/spend.png"><img src="docs/screenshots/spend.png" alt="Combined work-spend chart with recorded and projected totals." width="360" /></a><br>Combined work-spend chart with recorded and projected totals. | <a href="docs/screenshots/efficiency.png"><img src="docs/screenshots/efficiency.png" alt="Current Efficiency screen; the engine is not wired in this Electron build." width="360" /></a><br>Current Efficiency screen; the engine is not wired in this Electron build. |
+
+| Scoreboard | Alerts |
+| --- | --- |
+| <a href="docs/screenshots/scoreboard.png"><img src="docs/screenshots/scoreboard.png" alt="Current Scoreboard shell with its empty session state and badge list." width="360" /></a><br>Current Scoreboard shell with its empty session state and badge list. | <a href="docs/screenshots/alerts.png"><img src="docs/screenshots/alerts.png" alt="Current Alerts screen with no advisories in this sample session." width="360" /></a><br>Current Alerts screen with no advisories in this sample session. |
+
+| Options | Options Bottom |
+| --- | --- |
+| <a href="docs/screenshots/options.png"><img src="docs/screenshots/options.png" alt="Preferences for appearance, refresh interval, menu-bar scale, and sources." width="360" /></a><br>Preferences for appearance, refresh interval, menu-bar scale, and sources. | <a href="docs/screenshots/options-bottom.png"><img src="docs/screenshots/options-bottom.png" alt="Lower Preferences sections, source shortcuts, and reset/data-folder actions." width="360" /></a><br>Lower Preferences sections, source shortcuts, and reset/data-folder actions. |
+
+| Notifications | Menu Bar Style |
+| --- | --- |
+| <a href="docs/screenshots/notifications.png"><img src="docs/screenshots/notifications.png" alt="Notification toggles, individual 15/10/5 percent levels, sound, and system settings." width="360" /></a><br>Notification toggles, individual 15/10/5 percent levels, sound, and system settings. | <a href="docs/screenshots/menu-bar-style.png"><img src="docs/screenshots/menu-bar-style.png" alt="Per-provider style preference set to the stacked-track layout." width="360" /></a><br>Per-provider style preference set to the stacked-track layout. |
+
+</details>
+
+The Efficiency and Scoreboard images show the current placeholder states in the Electron build; they do not imply that session scoring is implemented. Alerts shows its current empty advisory view.
+
+The menu-bar sheet uses the app’s actual drawing code with sample values, arranged on a neutral backdrop. It is not a capture of a personal desktop.
+
+[How these screenshots are made](docs/screenshots/README.md)
+
 ---
 
 ## Requirements
