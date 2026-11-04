@@ -14,11 +14,11 @@ const LABEL = "rgb(153, 173, 199)";
 
 /**
  * Tray renderer for macOS + Windows (same canvas path on both).
- * Divider/rings/focus sized up so type fills the capsule; stacked stays its own scale.
+ * Divider matches stacked capsule height / type scale so adjacent blocks align.
  */
 const VALUE_FONT =
-  '600 16px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
-const LABEL_FONT = '600 15px "SF Pro Text", -apple-system';
+  '600 13px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
+const LABEL_FONT = '600 12px "SF Pro Text", -apple-system';
 const VALUE_FONT_STACKED =
   '600 13px ".AppleSystemUIFontMonospacedDigit", "SF Pro Text", -apple-system';
 const LABEL_FONT_STACKED = '600 12px "SF Pro Text", -apple-system';
@@ -30,30 +30,31 @@ function rgb(c: [number, number, number], alpha = 1): string {
 }
 
 function chromeHeight(design: BarDesign): number {
-  if (isStacked(design)) return 28;
-  // Divider/rings/focus: taller capsule around the larger type.
-  return design === "baseline" ? 32 : 30;
+  // Same capsule height for stacked + divider so neighbors match in the menu bar.
+  if (isStacked(design) || design === "divider" || design === "rings" || design === "focus") {
+    return 28;
+  }
+  return 28; // baseline shares height; meter sits in the lower pad
 }
 
 function iconSizeFor(_design: BarDesign): number {
   return 18;
 }
 
-/** Horizontal padding / gaps — divider gets more air so the larger type isn't cramped. */
-function padFor(design: BarDesign): number {
-  return isStacked(design) ? 7 : 9;
+function padFor(_design: BarDesign): number {
+  return 7;
 }
 
-function iconGapFor(design: BarDesign): number {
-  return isStacked(design) ? 5 : 6;
+function iconGapFor(_design: BarDesign): number {
+  return 5;
 }
 
-function labelValueGap(design: BarDesign): number {
-  return isStacked(design) ? 5 : 6;
+function labelValueGap(_design: BarDesign): number {
+  return 5;
 }
 
 function metricGap(design: BarDesign): number {
-  return isStacked(design) ? 0 : 16;
+  return isStacked(design) ? 0 : 13;
 }
 
 function fontsFor(design: BarDesign): { value: string; label: string } {
@@ -220,7 +221,7 @@ export function renderStatusBarPng(
 
     if (prefs.darkBarBackground) {
       ctx.fillStyle = b.allowanceEmpty ? EXHAUSTED : PANEL;
-      roundRect(ctx, pt(x), pt(y0), pt(bw), pt(bh), pt(isStacked(b.design) ? 6 : 8));
+      roundRect(ctx, pt(x), pt(y0), pt(bw), pt(bh), pt(6));
       ctx.fill();
     }
 
@@ -288,7 +289,7 @@ export function renderStatusBarPng(
 
       if (b.design === "divider" && mi > 0) {
         ctx.fillStyle = TRACK;
-        ctx.fillRect(pt(cursor - mGap / 2), pt(y0 + 8), pt(1), pt(14));
+        ctx.fillRect(pt(cursor - mGap / 2), pt(y0 + 7), pt(1), pt(14));
       }
 
       const labelW = measure(ctx, m.label, labelFontPx) / S;
@@ -298,10 +299,10 @@ export function renderStatusBarPng(
 
       if (b.design === "focus" && m.percent === minPct && minPct < 999) {
         ctx.fillStyle = rgb(m.color, 0.18);
-        roundRect(ctx, pt(cursor - 3), pt(y0 + 5), pt(rowInner + 6), pt(20), pt(3));
+        roundRect(ctx, pt(cursor - 3), pt(y0 + 4), pt(rowInner + 6), pt(20), pt(3));
         ctx.fill();
         ctx.fillStyle = color;
-        roundRect(ctx, pt(cursor - 3), pt(y0 + 8), pt(2), pt(14), pt(1));
+        roundRect(ctx, pt(cursor - 3), pt(y0 + 7), pt(2), pt(14), pt(1));
         ctx.fill();
         cursor += 3;
       }
@@ -325,7 +326,7 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Top-origin; 16px $ vs 15px D/M — half-point keeps optical centers aligned.
+      // Top-origin; same 13/12 type as stacked — half-point keeps $ with D/M.
       const rowY = y0 + (b.design === "baseline" ? 4 : 7);
       const labelOffset = b.design === "baseline" ? -1 : 1;
       const valueOffset = b.design === "baseline" ? -2 : 0.5;
@@ -339,7 +340,7 @@ export function renderStatusBarPng(
 
 
       if ((b.design === "baseline" || b.design === "divider") && m.percent !== undefined) {
-        const my = y0 + (b.design === "baseline" ? 22 : 24);
+        const my = y0 + 22;
         const meterW = labelW + lvGap + valueW;
         ctx.fillStyle = TRACK;
         roundRect(ctx, pt(cursor), pt(my), pt(meterW), pt(4), pt(2));
