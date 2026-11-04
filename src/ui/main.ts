@@ -283,7 +283,11 @@ function spendHeadline(s: SourceSnapshot, prefs: Prefs): string {
 
 // ---------- views ----------
 
-function sourceCard(s: SourceSnapshot, prefs: Prefs): string {
+function sourceCard(
+  s: SourceSnapshot,
+  prefs: Prefs,
+  opts: { expand?: boolean } = {},
+): string {
   if (!s.enabled) {
     return `<article class="card off compact" data-act="go" data-route="source:${s.id}">
       <div class="card-head">
@@ -305,7 +309,8 @@ function sourceCard(s: SourceSnapshot, prefs: Prefs): string {
       : s.id === "openai"
         ? "Estimated balance / reported spend ›"
         : "View details ›";
-  return `<article class="card${s.status === "stale" ? " stale" : ""}">
+  const expand = opts.expand ? " card-expand" : "";
+  return `<article class="card${expand}${s.status === "stale" ? " stale" : ""}">
     <div class="card-head">
       ${providerMark(s.id, 20)}
       <div class="card-titles">
@@ -338,9 +343,12 @@ function pairRowsHtml(cards: string[]): string {
 }
 
 /**
- * Overview layout mirrors Swift `providerOverviewGrid`:
- * enabled pairs first; a lone enabled shares its row with up to 3 compact
- * disabled cards; leftover disabled cards pair below.
+ * Overview layout — Swift `providerOverviewGrid` rules:
+ * 1. Enabled providers pair left-to-right (2 per row).
+ * 2. If one enabled is left over, it sits alone on the left and grows to the
+ *    height of the right column (`expandVertically`).
+ * 3. At most 3 disabled cards stack in that right column (besideCap = 3).
+ * 4. Remaining disabled cards pair on rows below (a single leftover is full width).
  */
 function overviewView(st: AppState): string {
   const parts = [noticeHtml()];
@@ -351,6 +359,7 @@ function overviewView(st: AppState): string {
 
   const pairedEnabled = enabled.slice(0, enabled.length - (enabled.length % 2));
   const loneEnabled = enabled.length % 2 === 1 ? enabled[enabled.length - 1] : undefined;
+  // Swift MissionControl.besideCap — keeps the live card from stretching with a tall stack.
   const besideCap = 3;
   const besideDisabled = loneEnabled ? disabled.slice(0, besideCap) : [];
   const overflowDisabled = loneEnabled ? disabled.slice(besideCap) : disabled;
@@ -363,8 +372,9 @@ function overviewView(st: AppState): string {
       besideDisabled.length === 0
         ? `<div class="overview-spacer"></div>`
         : `<div class="disabled-stack">${besideDisabled.map((s) => sourceCard(s, prefs)).join("")}</div>`;
+    // `card-expand` = Swift expandVertically: true — fill the row next to the stack.
     parts.push(
-      `<div class="overview-row">${sourceCard(loneEnabled, prefs)}${right}</div>`,
+      `<div class="overview-row">${sourceCard(loneEnabled, prefs, { expand: true })}${right}</div>`,
     );
   }
   if (overflowDisabled.length > 0) {
