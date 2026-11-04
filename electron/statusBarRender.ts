@@ -155,9 +155,10 @@ export function renderStatusBarPng(
   }
 
   const scaleFactor = 2;
-  // Swift StatusBarArtwork enlarged: icon 14, pad 7.
+  // Swift StatusBarArtwork enlarged: icon 14, pad 7; icon→label gap tightened a hair.
   const iconSize = 14;
   const pad = 7;
+  const iconGap = 5;
   const gap = 5;
   const height = Math.max(...blocks.map((b) => chromeHeight(b.design)));
 
@@ -167,7 +168,7 @@ export function renderStatusBarPng(
   mctx.font = VALUE_FONT_STACKED;
   const widths = blocks.map((b) => {
     const { value, label } = fontsFor(b.design);
-    return pad + iconSize + pad + contentWidth(mctx, b, value, label) + pad;
+    return pad + iconSize + iconGap + contentWidth(mctx, b, value, label) + pad;
   });
   const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, blocks.length - 1);
 
@@ -211,7 +212,7 @@ export function renderStatusBarPng(
     // Device-pixel font sizes (11pt → 22px @2x).
     const valueFontPx = valueFont.replace(/(\d+)px/, (_, n) => `${Number(n) * S}px`);
     const labelFontPx = labelFont.replace(/(\d+)px/, (_, n) => `${Number(n) * S}px`);
-    let cursor = x + pad + iconSize + pad;
+    let cursor = x + pad + iconSize + iconGap;
     const labelColW = Math.max(
       0,
       ...b.metrics.map((m) => measure(ctx, m.label, labelFontPx) / S),

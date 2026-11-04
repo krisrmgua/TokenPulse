@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld("tokenpulse", {
   setOpenAIBalance: (usd: number | null) => ipcRenderer.invoke("tp:setOpenAIBalance", usd),
   openDataDir: () => ipcRenderer.invoke("tp:openDataDir"),
   openExternal: (url: string) => ipcRenderer.invoke("tp:openExternal", url),
+  openNotificationSettings: () => ipcRenderer.invoke("tp:openNotificationSettings"),
+  sendTestNotification: () => ipcRenderer.invoke("tp:sendTestNotification"),
   hide: () => ipcRenderer.invoke("tp:hide"),
   fitHeight: (height: number) => ipcRenderer.invoke("tp:fitHeight", height),
   quit: () => ipcRenderer.invoke("tp:quit"),

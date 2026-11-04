@@ -74,6 +74,15 @@ export interface Prefs {
   pastelBarColors: boolean;
   /** Keep last Mission route when reopening the panel (Swift rememberPanelPlace). */
   rememberPanelPlace: boolean;
+  notificationsEnabled: boolean;
+  allowanceAlertsEnabled: boolean;
+  /** Claude model-spend advisories (Swift opusAlertsEnabled). */
+  opusAlertsEnabled: boolean;
+  notificationSounds: boolean;
+  /** Percent-left levels that can fire, highest first. */
+  alertThresholds: number[];
+  /** Subset of alertThresholds currently muted. */
+  disabledAlertThresholds: number[];
 }
 
 export const REFRESH_CHOICES = [1, 2, 3, 5, 10, 15, 30];

@@ -44,7 +44,47 @@ export function defaultPrefs(): Prefs {
     spendColorsEnabled: true,
     pastelBarColors: true,
     rememberPanelPlace: false,
+    notificationsEnabled: true,
+    allowanceAlertsEnabled: true,
+    opusAlertsEnabled: true,
+    notificationSounds: false,
+    alertThresholds: [15, 10, 5],
+    disabledAlertThresholds: [],
   };
+}
+
+/** Swift AllowanceAlertLedger.parseThresholds — 1–10 ints in 1…99, unique, high→low. */
+export function parseAlertThresholds(text: string): number[] | null {
+  const parts = text
+    .replaceAll("%", "")
+    .split(/[,;\s]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0 || parts.length > 10) return null;
+  const values: number[] = [];
+  for (const p of parts) {
+    if (!/^\d+$/.test(p)) return null;
+    const n = Number(p);
+    if (!Number.isInteger(n) || n < 1 || n > 99) return null;
+    values.push(n);
+  }
+  return [...new Set(values)].sort((a, b) => b - a);
+}
+
+function normalizeThresholds(raw: unknown, fallback: number[]): number[] {
+  if (!Array.isArray(raw)) return [...fallback];
+  const parsed = parseAlertThresholds(raw.map(String).join(","));
+  return parsed ?? [...fallback];
+}
+
+function normalizeDisabled(raw: unknown, thresholds: number[]): number[] {
+  if (!Array.isArray(raw)) return [];
+  const set = new Set(thresholds);
+  return [
+    ...new Set(
+      raw.filter((n): n is number => typeof n === "number" && set.has(n)),
+    ),
+  ];
 }
 
 function parseBarDesign(raw: unknown, spendOnly: boolean): BarDesign {
@@ -181,6 +221,31 @@ export class PrefsStore {
     if (typeof patch.rememberPanelPlace === "boolean") {
       this.data.rememberPanelPlace = patch.rememberPanelPlace;
     }
+    if (typeof patch.notificationsEnabled === "boolean") {
+      this.data.notificationsEnabled = patch.notificationsEnabled;
+    }
+    if (typeof patch.allowanceAlertsEnabled === "boolean") {
+      this.data.allowanceAlertsEnabled = patch.allowanceAlertsEnabled;
+    }
+    if (typeof patch.opusAlertsEnabled === "boolean") {
+      this.data.opusAlertsEnabled = patch.opusAlertsEnabled;
+    }
+    if (typeof patch.notificationSounds === "boolean") {
+      this.data.notificationSounds = patch.notificationSounds;
+    }
+    if (Array.isArray(patch.alertThresholds)) {
+      const parsed = parseAlertThresholds(patch.alertThresholds.map(String).join(","));
+      if (parsed) {
+        this.data.alertThresholds = parsed;
+        this.data.disabledAlertThresholds = [];
+      }
+    }
+    if (Array.isArray(patch.disabledAlertThresholds)) {
+      this.data.disabledAlertThresholds = normalizeDisabled(
+        patch.disabledAlertThresholds,
+        this.data.alertThresholds,
+      );
+    }
     this.persist();
     return this.get();
   }
@@ -262,6 +327,23 @@ export class PrefsStore {
       base.pastelBarColors = true;
       base.rememberPanelPlace = false;
     }
+    if (typeof raw.notificationsEnabled === "boolean") {
+      base.notificationsEnabled = raw.notificationsEnabled;
+    }
+    if (typeof raw.allowanceAlertsEnabled === "boolean") {
+      base.allowanceAlertsEnabled = raw.allowanceAlertsEnabled;
+    }
+    if (typeof raw.opusAlertsEnabled === "boolean") {
+      base.opusAlertsEnabled = raw.opusAlertsEnabled;
+    }
+    if (typeof raw.notificationSounds === "boolean") {
+      base.notificationSounds = raw.notificationSounds;
+    }
+    base.alertThresholds = normalizeThresholds(raw.alertThresholds, base.alertThresholds);
+    base.disabledAlertThresholds = normalizeDisabled(
+      raw.disabledAlertThresholds,
+      base.alertThresholds,
+    );
 
     // Existing Electron prefs without display keys → seed from Swift once.
     if (
