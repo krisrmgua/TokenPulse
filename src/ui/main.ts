@@ -672,7 +672,6 @@ function sourceView(st: AppState, id: SourceId): string {
     const figs: [string, string][] = [];
     if (s.todayUSD !== undefined) figs.push(["Today", money(s.todayUSD)]);
     if (s.monthUSD !== undefined) figs.push(["Month to date", money(s.monthUSD)]);
-    if (s.projectedUSD !== undefined) figs.push(["Projected month-end", money(s.projectedUSD)]);
     if (figs.length > 0) parts.push(metricsHtml(figs));
     const meters = metersHtml(s, st.prefs);
     if (meters) parts.push(`<div class="card">${meters}</div>`);
