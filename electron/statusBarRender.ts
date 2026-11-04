@@ -35,6 +35,11 @@ function chromeHeight(design: BarDesign): number {
   return design === "baseline" ? 24 : 22;
 }
 
+/** Stacked capsules are taller — grow the provider mark to fill the spare chrome. */
+function iconSizeFor(design: BarDesign): number {
+  return isStacked(design) ? 18 : 14;
+}
+
 function fontsFor(design: BarDesign): { value: string; label: string } {
   if (isStacked(design)) {
     return { value: VALUE_FONT_STACKED, label: LABEL_FONT_STACKED };
@@ -155,8 +160,7 @@ export function renderStatusBarPng(
   }
 
   const scaleFactor = 2;
-  // Swift StatusBarArtwork enlarged: icon 14, pad 7; icon→label gap tightened a hair.
-  const iconSize = 14;
+  // Outer pad 7; icon→label gap tightened a hair. Stacked icons are larger (see iconSizeFor).
   const pad = 7;
   const iconGap = 5;
   const gap = 5;
@@ -168,7 +172,7 @@ export function renderStatusBarPng(
   mctx.font = VALUE_FONT_STACKED;
   const widths = blocks.map((b) => {
     const { value, label } = fontsFor(b.design);
-    return pad + iconSize + iconGap + contentWidth(mctx, b, value, label) + pad;
+    return pad + iconSizeFor(b.design) + iconGap + contentWidth(mctx, b, value, label) + pad;
   });
   const total = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, blocks.length - 1);
 
@@ -187,6 +191,7 @@ export function renderStatusBarPng(
     const b = blocks[bi];
     const bw = widths[bi];
     const bh = chromeHeight(b.design);
+    const iconSize = iconSizeFor(b.design);
     const y0 = (height - bh) / 2;
     const alpha = b.stale ? 0.45 : 1;
     ctx.globalAlpha = alpha;
