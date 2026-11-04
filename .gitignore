@@ -1,6 +1,7 @@
 # Swift / SwiftPM
 menubar/.build/
 menubar/TokenPulse.app/
+menubar/TokenPulse-Swift.app/
 *.xcodeproj
 .swiftpm/
 

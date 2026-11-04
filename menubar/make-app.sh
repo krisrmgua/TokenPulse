@@ -5,8 +5,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP="TokenPulse.app"
-BUNDLE_ID="com.kris.tokenpulse"
+# Side-by-side with Electron: APP_NAME=TokenPulse-Swift BUNDLE_ID=com.kris.tokenpulse.swift ./make-app.sh
+APP_NAME="${APP_NAME:-TokenPulse}"
+BUNDLE_ID="${BUNDLE_ID:-com.kris.tokenpulse}"
+APP="${APP_NAME}.app"
+DISPLAY_NAME="${DISPLAY_NAME:-$APP_NAME}"
 
 swift build -c release
 BIN="$(swift build -c release --show-bin-path)/TokenPulse"
@@ -29,8 +32,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>TokenPulse</string>
-  <key>CFBundleDisplayName</key><string>TokenPulse</string>
+  <key>CFBundleName</key><string>$APP_NAME</string>
+  <key>CFBundleDisplayName</key><string>$DISPLAY_NAME</string>
   <key>CFBundleExecutable</key><string>TokenPulse</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundleIconFile</key><string>TokenPulse.icns</string>
