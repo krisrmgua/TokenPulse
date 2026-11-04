@@ -50,6 +50,7 @@ app.whenReady().then(async () => {
       const text = await win.webContents.executeJavaScript('document.body.innerText');
       if (!text.includes(shot.expect)) throw new Error(`${shot.name}: expected ${shot.expect}`);
     }
+    if (shot.check && !await win.webContents.executeJavaScript(shot.check)) throw new Error(`${shot.name}: interaction assertion failed`);
     const png = await win.webContents.capturePage();
     if (png.isEmpty()) throw new Error(`Empty capture: ${shot.name}`);
     fs.writeFileSync(path.join(output, `${shot.name}.png`), png.toPNG());

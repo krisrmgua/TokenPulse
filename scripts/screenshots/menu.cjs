@@ -34,6 +34,26 @@ module.exports = async (root, output) => {
   const {nativeImage}=require('electron');
   items.push({file:'menu-bar-combined.png',caption:'One combined menu bar with ChatGPT, Cursor, Grok Bot, OpenAI API, and Claude, each using its own supported style.',size:nativeImage.createFromBuffer(mixed.png).getSize()});
   const save = async (file,title,rows,caption) => items.push(await board(output,file,title,rows,caption));
+  const shared = (sources,{themed=false,optOut=[],letters=false}={}) => {
+    const prefs=defaultPrefs();Object.assign(prefs,{themedProviderLogos:themed,sharedRingLetters:letters});
+    for(const id of ids)Object.assign(prefs.sources[id],{enabled:true,showInTray:true,sharedPill:!optOut.includes(id),barDesign:'lanes'});
+    const blocks=renderer.blocksFromSources(sources,prefs);
+    if(blocks.filter(block=>block.sharedPill).length!==sources.length-optOut.length)throw new Error('Shared provider participation mismatch');
+    return renderer.renderStatusBarPng(blocks,prefs).png;
+  };
+  const compact=['chatgpt','cursor','grokbot'].map((id,i)=>{
+    const sample=source(id);sample.meters=sample.meters.slice(0,1);sample.meters[0].percentLeft=[81,67,32][i];return sample;
+  });
+  const compactPng=shared(compact);
+  fs.writeFileSync(path.join(output,'menu-bar-shared-pill.png'),compactPng);
+  items.unshift({file:'menu-bar-shared-pill.png',caption:'One shared pill containing ChatGPT, Cursor, and Grok Bot, with fictional remaining allowances and standard provider marks.',size:nativeImage.createFromBuffer(compactPng).getSize()});
+  await save('menu-bar-shared-options.png','TokenPulse · single combined pill',[
+    {label:'Compact example · three providers reporting a single allowance',png:compactPng},
+    {label:'All five providers · allowance rings and OpenAI money figures',png:shared(ids.map(id=>source(id)),{themed:true})},
+    {label:'Mixed mode · Claude opts out and keeps its own Stacked tracks capsule',png:shared(ids.map(id=>source(id)),{themed:true,optOut:['claude']})},
+    {label:'Optional ring letters enabled · all five providers',png:shared(ids.map(id=>source(id)),{themed:true,letters:true})},
+  ],'Shared-pill examples: compact standard marks, all five providers, per-provider opt-out, and optional ring letters. All data is synthetic.');
+
   await save('menu-bar.png','TokenPulse · every menu-bar style',BAR_DESIGNS.map((style,i) => {
     const id=quotas[i%quotas.length];return {label:`${style.number} · ${style.name} — ${names[id]}`,png:render([source(id)],style.id)};
   }),'All seven menu-bar styles, rendered by production code with fictional allowance values.');
@@ -70,7 +90,7 @@ module.exports = async (root, output) => {
   ],'Healthy, low, exhausted, and stale allowance states using production status and tint logic.');
   const coverage={styles:BAR_DESIGNS.map(s=>s.id),providers:ids,allowanceProviders:quotas,
     quotaExamples:BAR_DESIGNS.length*quotas.length,spendExamples:BAR_DESIGNS.filter(s=>s.spendOk).length*4,
-    sizes:[...MENU_BAR_SCALES],themedAndStandard:true,styleProofs};
+    sizes:[...MENU_BAR_SCALES],themedAndStandard:true,sharedPill:true,sharedPillExamples:4,styleProofs};
   if(coverage.styles.length!==7 || coverage.providers.length!==5 || coverage.quotaExamples!==28 || coverage.spendExamples!==8) throw new Error('Incomplete menu-bar coverage');
   fs.writeFileSync(path.join(output,'menu-coverage.json'),JSON.stringify(coverage,null,2)+'\n');
   return items;

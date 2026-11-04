@@ -2,12 +2,31 @@
 
 TokenPulse is a tray app for **macOS** and **Windows** that shows how much of your AI allowance is left, and what recent spend looks like, without opening each provider's dashboard.
 
-It is local-first. Claude, Cursor, ChatGPT, OpenAI API, and Grok Bot are separate sources. You turn a source on when you want it. A missing sign-in or a failed refresh leaves the last good numbers in place, then fades them once they are stale. On a Mac the menu bar shows one short block per source you chose to show. On Windows the same text is in the tray tooltip. Clicking the icon opens a dark Mission Control panel with the details and preferences.
+It is local-first. Claude, Cursor, ChatGPT, OpenAI API, and Grok Bot are separate sources. You turn a source on when you want it. A missing sign-in or a failed refresh leaves the last good numbers in place, then fades them once they are stale. On a Mac, enabled sources can share one combined menu-bar pill, or use separate capsules when you turn off **Shared pill** for a provider. On Windows the same text is in the tray tooltip. Clicking the icon opens a dark Mission Control panel with the details and preferences.
 
 The app is Electron. The original Swift menu-bar app is still in `menubar/` (see [Legacy Swift app](#legacy-swift-app)).
 
 
 ## Menu-bar previews
+
+### Single combined pill
+
+**Shared pill** joins participating providers inside one capsule. It is enabled by default for each provider. Turn it off on a provider’s detail page to keep that provider’s selected individual style instead; the other providers remain grouped. While Shared pill is on, the individual **Menu bar style** selector is disabled.
+
+<a href="docs/screenshots/menu-bar-shared-pill.png"><img src="docs/screenshots/menu-bar-shared-pill.png" alt="Single combined pill with ChatGPT, Cursor, and Grok Bot using fictional values" width="354" /></a>
+
+The compact example uses standard provider marks and one reported allowance per source. The all-provider examples below also show separate session/weekly rings and OpenAI balance/spend figures. **Options → Letters inside rings** controls the optional ring labels.
+
+<details>
+<summary>Shared-pill combinations and the setting</summary>
+
+<a href="docs/screenshots/menu-bar-shared-options.png"><img src="docs/screenshots/menu-bar-shared-options.png" alt="Shared pill with all five providers, individual opt-out, and ring letters" width="780" /></a>
+
+<a href="docs/screenshots/shared-pill-settings.png"><img src="docs/screenshots/shared-pill-settings.png" alt="Provider settings with Shared pill enabled and individual style disabled" width="780" /></a>
+
+</details>
+
+### Separate provider capsules
 
 All five providers together, using fictional values: **ChatGPT · Cursor · Grok Bot · OpenAI API · Claude**. Each provider can use its own supported layout.
 
@@ -391,7 +410,7 @@ That installs `~/Applications/TokenPulse-Swift.app` (`com.kris.tokenpulse.swift`
 
 ## Version
 
-The shipping version is `package.json` → `version` (currently **0.3.0**). The panel shows it as `v0.3.0` in Options and in the footer. Bump that field before each release you push and package; Electron Builder embeds it so `app.getVersion()` matches.
+The shipping version is `package.json` → `version` (currently **0.5.50**). The panel shows it as `v0.5.50` in Options and in the footer. Bump that field before each release you push and package; Electron Builder embeds it so `app.getVersion()` matches.
 
 ## License
 

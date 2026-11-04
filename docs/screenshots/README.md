@@ -6,7 +6,7 @@ These are captures of `dist/index.html` built from the repository’s actual `sr
 
 No installed app, sign-in, API key, real repository scan, market-data request, or scheduled command is needed. Example stock prices, allowance percentages, balances, and positions are illustrative. There are no AI-generated interface images.
 
-Captured from version **0.5.49**, source revision `058831b`.
+Captured from version **0.5.50**, source revision `2b0c19c`.
 
 
 ## Menu-bar icons and views
@@ -134,3 +134,9 @@ Notification toggles, individual 15/10/5 percent levels, sound, and system setti
 Per-provider style preference set to the stacked-track layout.
 
 ![Per-provider style preference set to the stacked-track layout.](menu-bar-style.png)
+
+## Shared pill settings
+
+The per-provider Shared pill switch joins the combined capsule and disables individual style selection while enabled. All sample values are fictional.
+
+![Shared pill provider settings](shared-pill-settings.png)

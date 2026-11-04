@@ -4,6 +4,16 @@ TokenPulse covers all seven supported styles across all four allowance providers
 
 Every icon/capsule is produced by the app’s real drawing functions. Sample values are fictional. Labeled sheets enlarge rendered PNGs 2×; the combined TokenPulse strip retains its original Retina pixels. No account data, credentials, private repository data, job state, or live prices are read. The entry point never starts the production backend and blocks network requests.
 
+## Single combined pill
+
+Shared pill is on by default for each provider. It collects participating providers inside one capsule, using rings for allowances and money figures for balance/spend. Disable **Shared pill** on a provider’s detail page to let that provider keep its separate selected style. Individual style selection is disabled while the provider participates. **Options → Letters inside rings** adds ring labels.
+
+![Compact shared pill with fictional values](screenshots/menu-bar-shared-pill.png)
+
+![All-provider, opt-out, and ring-letter examples](screenshots/menu-bar-shared-options.png)
+
+![Provider setting for the shared pill](screenshots/shared-pill-settings.png)
+
 ## Regenerate only menu-bar previews
 
 ```bash

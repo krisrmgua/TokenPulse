@@ -1,10 +1,26 @@
 [
   {
+    "file": "menu-bar-shared-pill.png",
+    "caption": "One shared pill containing ChatGPT, Cursor, and Grok Bot, with fictional remaining allowances and standard provider marks.",
+    "size": {
+      "width": 354,
+      "height": 56
+    }
+  },
+  {
     "file": "menu-bar-combined.png",
     "caption": "One combined menu bar with ChatGPT, Cursor, Grok Bot, OpenAI API, and Claude, each using its own supported style.",
     "size": {
-      "width": 1230,
+      "width": 1180,
       "height": 80
+    }
+  },
+  {
+    "file": "menu-bar-shared-options.png",
+    "caption": "Shared-pill examples: compact standard marks, all five providers, per-provider opt-out, and optional ring letters. All data is synthetic.",
+    "size": {
+      "width": 2428,
+      "height": 1000
     }
   },
   {
@@ -91,7 +107,7 @@
     "file": "menu-bar-appearance.png",
     "caption": "ChatGPT and OpenAI examples with themed marks, standard marks, and capsule backgrounds switched off.",
     "size": {
-      "width": 1636,
+      "width": 1588,
       "height": 788
     }
   },

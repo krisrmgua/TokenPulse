@@ -394,6 +394,7 @@ module.exports = {
           "showInTray": true,
           "account": "personal",
           "barDesign": "divider",
+        "sharedPill": true,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -403,6 +404,7 @@ module.exports = {
           "showInTray": true,
           "account": "work",
           "barDesign": "divider",
+        "sharedPill": true,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -412,6 +414,7 @@ module.exports = {
           "showInTray": true,
           "account": "personal",
           "barDesign": "divider",
+        "sharedPill": true,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -421,6 +424,7 @@ module.exports = {
           "showInTray": true,
           "account": "work",
           "barDesign": "divider",
+        "sharedPill": true,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -430,6 +434,7 @@ module.exports = {
           "showInTray": true,
           "account": "personal",
           "barDesign": "divider",
+        "sharedPill": true,
           "showDailyInBar": true,
           "showMonthlyInBar": true,
           "showBalanceInBar": true
@@ -465,7 +470,7 @@ module.exports = {
     "platform": "darwin",
     "openAIKeyConfigured": false,
     "dataDir": "/Users/demo/Library/Application Support/TokenPulse",
-    "version": "0.5.49",
+    "version": "0.5.50",
     "icons": {
       "chatgpt": image('menubar/Artwork/providers/chatgpt-themed.png'),
       "cursor": image('menubar/Artwork/providers/cursor-themed.png'),
@@ -559,10 +564,17 @@ module.exports = {
       "action": "document.querySelector(\"[data-route=\\\"notifications\\\"]\").click();",
       "expect": "Customize thresholds"
     },
+{
+    "name": "shared-pill-settings",
+    "caption": "Shared pill enabled for ChatGPT; its separate menu-bar style is disabled while it participates.",
+    "action": "document.querySelector('[data-act=\"go\"][data-route=\"source:chatgpt\"]').click();",
+    "expect": "Shared pill",
+    "check": "document.querySelector('[data-act=\"shared-pill\"]').checked && document.querySelector('[data-act=\"bar-design\"]').disabled"
+},
     {
       "name": "menu-bar-style",
       "caption": "Per-provider style preference set to the stacked-track layout.",
-      "action": "document.querySelector(\"[data-route=\\\"source:chatgpt\\\"]\").click();const s=document.querySelector('[data-act=\"bar-design\"]');s.value='lanes';s.dispatchEvent(new Event('change',{bubbles:true}));",
+      "action": "(async () => { document.querySelector('[data-route=\"source:chatgpt\"]').click();document.querySelector('[data-act=\"shared-pill\"]').click();for(let i=0;i<100 && document.querySelector('[data-act=\"bar-design\"]').disabled;i++)await new Promise(r=>setTimeout(r,10));const s=document.querySelector('[data-act=\"bar-design\"]');if(s.disabled)throw new Error('Shared pill did not turn off');s.value='lanes';s.dispatchEvent(new Event('change',{bubbles:true}));})()",
       "expect": "Menu bar style"
     }
   ]
