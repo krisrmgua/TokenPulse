@@ -289,7 +289,7 @@ export function renderStatusBarPng(
 
       if (b.design === "divider" && mi > 0) {
         ctx.fillStyle = TRACK;
-        ctx.fillRect(pt(cursor - mGap / 2), pt(y0 + 9), pt(1), pt(12));
+        ctx.fillRect(pt(cursor - mGap / 2), pt(y0 + 8), pt(1), pt(12));
       }
 
       const labelW = measure(ctx, m.label, labelFontPx) / S;
@@ -326,8 +326,8 @@ export function renderStatusBarPng(
         cursor += 21;
       }
 
-      // Top-origin; 16/15 in 28pt — drop a few pts so the row sits with the icon, not high.
-      const rowY = y0 + (b.design === "baseline" ? 4 : 8);
+      // Top-origin; 16/15 in 28pt — 5 was high, 8 was low; land in between with the icon.
+      const rowY = y0 + (b.design === "baseline" ? 4 : 6.5);
       const labelOffset = b.design === "baseline" ? -1 : 1;
       const valueOffset = b.design === "baseline" ? -2 : 0.5;
       ctx.textBaseline = "top";
