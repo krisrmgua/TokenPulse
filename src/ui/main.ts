@@ -731,6 +731,7 @@ function optionsView(st: AppState): string {
         <span class="settings-label">Notifications</span>
         <span class="settings-chevron" aria-hidden="true">›</span>
       </button>
+      ${switchRow("login", "Open at login", p.openAtLogin)}
       ${switchRow("themed-logos", "Themed provider logos", p.themedProviderLogos)}
       ${switchRow("spend-colors", "Spend colors", p.spendColorsEnabled)}
       ${switchRow("dark-bar", "Dark menu-bar background", p.darkBarBackground)}
@@ -745,7 +746,6 @@ function optionsView(st: AppState): string {
     <div class="opt-actions">
       <button type="button" class="mission-btn" data-act="reset">${resetArmed ? "Click again to reset" : "Reset to defaults…"}</button>
       <button type="button" class="mission-btn" data-act="open-data">Open data folder</button>
-      <label class="toggle login-toggle"><input type="checkbox" data-act="login" ${p.openAtLogin ? "checked" : ""} /> Open at login</label>
     </div>
     <div class="muted foot-meta">TokenPulse ${escapeHtml(st.version)} · ${escapeHtml(st.platform)}</div>`;
 }
