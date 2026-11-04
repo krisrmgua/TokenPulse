@@ -340,9 +340,13 @@ export function createStatusBarImage(blocks: StatusBlock[], prefs: Prefs): Elect
       ];
 
       if (isStacked(b.design)) {
-        const rowY =
-          y0 +
-          (b.metrics.length === 1 ? Math.round(bh / 2 - 7) : mi * 11 * scale + 2 * scale);
+        // Center the D/M block as a whole in the capsule (same idea as the icon).
+        const glyphH = 7 * labelScale;
+        const rowPitch = Math.round(10.5 * scale);
+        const n = b.metrics.length;
+        const blockH = n <= 1 ? glyphH : glyphH + (n - 1) * rowPitch;
+        const startY = y0 + Math.round((bh - blockH) / 2);
+        const rowY = startY + mi * rowPitch;
         drawText(buf, total, height, m.label, cursor, rowY, LABEL, labelScale);
         let valueX = cursor + labels + 5 * scale;
         if ((b.design === "lanes" || b.design === "segments") && m.percent !== undefined) {
