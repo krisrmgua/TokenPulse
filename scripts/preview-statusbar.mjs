@@ -26,7 +26,7 @@ const basePrefs = {
 
 const samples = [
   {
-    name: "stack-cursor-spend",
+    name: "stack-cursor-uneven",
     blocks: [
       {
         id: "cursor",
@@ -34,14 +34,14 @@ const samples = [
         stale: false,
         allowanceEmpty: false,
         metrics: [
-          { label: "D", value: "$88", color: [255, 179, 176] },
-          { label: "M", value: "$100", color: [199, 245, 199] },
+          { label: "D", value: "$91", color: [255, 179, 176] },
+          { label: "M", value: "$104", color: [199, 245, 199] },
         ],
       },
     ],
   },
   {
-    name: "stack-cursor-small",
+    name: "stack-cursor-even",
     blocks: [
       {
         id: "cursor",
