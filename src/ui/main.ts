@@ -529,6 +529,75 @@ function spendView(st: AppState): string {
   return parts.join("");
 }
 
+/** Per-provider prefs that used to live on a separate options page. */
+function providerOptionsSections(st: AppState, id: SourceId, s: SourceSnapshot): string {
+  const sp = st.prefs.sources[id];
+  const spendStyleOnly =
+    id === "openai" ||
+    ((id === "cursor" || id === "claude" || id === "chatgpt") && s.account === "work");
+  const allowed = barDesignsFor(spendStyleOnly);
+  const parts: string[] = [];
+
+  if (spendStyleOnly) {
+    parts.push(`<div class="opt-section"><h3>Menu bar figures</h3><div class="card">
+      <label class="toggle"><input type="checkbox" data-act="daily-bar" data-id="${id}" ${sp.showDailyInBar ? "checked" : ""} /> Show daily in menu bar</label>
+      <label class="toggle"><input type="checkbox" data-act="monthly-bar" data-id="${id}" ${sp.showMonthlyInBar ? "checked" : ""} /> Show monthly in menu bar</label>
+    </div></div>`);
+  }
+
+  const designRows = allowed
+    .map(
+      (d) => `<label class="toggle design-choice">
+        <input type="radio" name="bar-design-${id}" data-act="bar-design" data-id="${id}" value="${d.id}" ${sp.barDesign === d.id ? "checked" : ""} />
+        ${escapeHtml(`${d.number} · ${d.name}`)}
+      </label>`,
+    )
+    .join("");
+  parts.push(
+    `<div class="opt-section"><h3>Menu bar style</h3><div class="card design-list">${designRows}</div></div>`,
+  );
+
+  if (id === "cursor" && s.account === "personal") {
+    parts.push(`<div class="opt-section"><h3>Pro allowance</h3><div class="card">
+      <div class="form-row">
+        <input type="number" id="opt-allowance" min="1" step="1" value="${st.prefs.cursorPersonalAllowanceUSD}" />
+        <button class="btn" data-act="save-allowance">Save</button>
+      </div>
+    </div></div>`);
+  }
+
+  if (id === "openai") {
+    const keyBlock = st.openAIKeyConfigured
+      ? `<div class="form-row">
+          <span class="status-line ok">Admin key saved.</span>
+          <span class="spacer"></span>
+          <button class="btn danger" data-act="delete-key" ${busy ? "disabled" : ""}>Remove key</button>
+        </div>`
+      : `<div class="form-row">
+          <input type="password" id="opt-key" placeholder="sk-admin-…" autocomplete="off" spellcheck="false" />
+          <button class="btn primary" data-act="save-key" ${busy ? "disabled" : ""}>Save and test</button>
+        </div>
+        <div class="muted">Organization Admin key from OpenAI Platform.
+          <button class="link" data-act="open-url" data-url="https://platform.openai.com/settings/organization/admin-keys">Open OpenAI Platform</button></div>`;
+    const bal = st.prefs.openAIBalance;
+    parts.push(`<div class="opt-section"><h3>Admin API</h3><div class="card">
+      ${keyBlock}
+      <div class="form-row">
+        <span>Current prepaid balance</span>
+        <input type="number" id="opt-balance" min="0" step="0.01" placeholder="0.00" value="${bal ? bal.enteredUSD : ""}" />
+        <button class="btn" data-act="set-balance">Set</button>
+        ${bal ? `<button class="btn" data-act="clear-balance">Clear</button>` : ""}
+      </div>
+    </div></div>`);
+  }
+
+  if (id === "grokbot") {
+    parts.push(`<div class="note">Needs Cursor login (same account as Grok Bot).</div>`);
+  }
+
+  return parts.join("");
+}
+
 function sourceView(st: AppState, id: SourceId): string {
   const s = st.sources.find((x) => x.id === id);
   if (!s) return `<div class="note err">Unknown source.</div>`;
@@ -561,14 +630,7 @@ function sourceView(st: AppState, id: SourceId): string {
   } else {
     parts.push(`<div class="muted">Off. Turn on Enable to start reading it.</div>`);
   }
-  if (id === "openai" && !st.openAIKeyConfigured) {
-    parts.push(
-      `<div class="form-row"><button class="btn primary" data-act="go" data-route="settings:openai">Add OpenAI Admin key…</button></div>`,
-    );
-  }
-  parts.push(
-    `<div class="form-row"><button class="btn" data-act="go" data-route="settings:${id}">Provider options</button></div>`,
-  );
+  parts.push(providerOptionsSections(st, id, s));
   return parts.join("");
 }
 
@@ -582,13 +644,13 @@ function efficiencyView(st: AppState): string {
       on
         ? `<div class="card stub">
             <div class="stub-title">Scoreboard not wired in this build</div>
-            <p class="muted">Session scoring, streaks, and badges ship with the Efficiency engine. Open the Scoreboard tab for the full shell, or use Claude provider options.</p>
-            <button class="btn" data-act="go" data-route="source:claude">Claude provider options</button>
+            <p class="muted">Session scoring, streaks, and badges ship with the Efficiency engine. Open the Scoreboard tab for the full shell, or open Claude.</p>
+            <button class="btn" data-act="go" data-route="source:claude">Open Claude</button>
           </div>`
         : `<div class="card stub">
             <div class="stub-title">Efficiency needs Claude</div>
             <p class="muted">Turn on Claude and let local sessions accumulate, then scores appear here.</p>
-            <button class="btn primary" data-act="go" data-route="source:claude">Claude provider options</button>
+            <button class="btn primary" data-act="go" data-route="source:claude">Open Claude</button>
           </div>`
     }`;
 }
@@ -610,7 +672,7 @@ function scoreboardView(st: AppState): string {
           ? "Model fit, context discipline, and cost hygiene rows appear once local Claude Code sessions are analyzed."
           : "Enable Claude to unlock the scoreboard."
       }</p>
-      <button class="btn" data-act="go" data-route="source:claude">Claude provider options</button>
+      <button class="btn" data-act="go" data-route="source:claude">Open Claude</button>
     </div>
     <h3>Badges</h3>
     <div class="badge-grid">
@@ -715,7 +777,7 @@ function optionsView(st: AppState): string {
   const sourceChips = orderedSources(st)
     .map(
       (s) =>
-        `<button type="button" class="mission-btn" data-act="go" data-route="settings:${s.id}">${escapeHtml(s.name)}</button>`,
+        `<button type="button" class="mission-btn" data-act="go" data-route="source:${s.id}">${escapeHtml(s.name)}</button>`,
     )
     .join("");
 
@@ -750,88 +812,9 @@ function optionsView(st: AppState): string {
     <div class="muted foot-meta">TokenPulse ${escapeHtml(st.version)} · ${escapeHtml(st.platform)}</div>`;
 }
 
+/** Legacy `settings:` routes fold into the provider page. */
 function settingsView(st: AppState, id: SourceId): string {
-  const s = st.sources.find((x) => x.id === id);
-  if (!s) return `<div class="note err">Unknown source.</div>`;
-  const sp = st.prefs.sources[id];
-  // Prefer account-based: work spend sources only get divider/stack (Swift spendCompatible).
-  const spendStyleOnly =
-    id === "openai" || ((id === "cursor" || id === "claude" || id === "chatgpt") && s.account === "work");
-  const allowed = barDesignsFor(spendStyleOnly);
-
-  const parts = [
-    noticeHtml(),
-    `<div class="card-head detail-head">
-      ${providerMark(s.id, 36)}
-      <div><h2>${escapeHtml(s.name)} · options</h2>
-      <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span></div>
-    </div>`,
-    `<div class="card">${togglesHtml(s)}</div>`,
-  ];
-
-  if (s.accounts.length > 1) {
-    parts.push(`<div class="opt-section"><h3>Account</h3><div class="card">${accountSelectHtml(s)}</div></div>`);
-  }
-
-  if (spendStyleOnly) {
-    parts.push(`<div class="opt-section"><h3>Menu bar figures</h3><div class="card">
-      <label class="toggle"><input type="checkbox" data-act="daily-bar" data-id="${id}" ${sp.showDailyInBar ? "checked" : ""} /> Show daily in menu bar</label>
-      <label class="toggle"><input type="checkbox" data-act="monthly-bar" data-id="${id}" ${sp.showMonthlyInBar ? "checked" : ""} /> Show monthly in menu bar</label>
-    </div></div>`);
-  }
-
-  const designRows = allowed
-    .map(
-      (d) => `<label class="toggle design-choice">
-        <input type="radio" name="bar-design-${id}" data-act="bar-design" data-id="${id}" value="${d.id}" ${sp.barDesign === d.id ? "checked" : ""} />
-        ${escapeHtml(`${d.number} · ${d.name}`)}
-      </label>`,
-    )
-    .join("");
-  parts.push(`<div class="opt-section"><h3>Menu bar style</h3><div class="card design-list">${designRows}</div></div>`);
-
-  if (id === "cursor" && s.account === "personal") {
-    parts.push(`<div class="opt-section"><h3>Pro allowance</h3><div class="card">
-      <div class="form-row">
-        <input type="number" id="opt-allowance" min="1" step="1" value="${st.prefs.cursorPersonalAllowanceUSD}" />
-        <button class="btn" data-act="save-allowance">Save</button>
-      </div>
-    </div></div>`);
-  }
-
-  if (id === "openai") {
-    const keyBlock = st.openAIKeyConfigured
-      ? `<div class="form-row">
-          <span class="status-line ok">Admin key saved.</span>
-          <span class="spacer"></span>
-          <button class="btn danger" data-act="delete-key" ${busy ? "disabled" : ""}>Remove key</button>
-        </div>`
-      : `<div class="form-row">
-          <input type="password" id="opt-key" placeholder="sk-admin-…" autocomplete="off" spellcheck="false" />
-          <button class="btn primary" data-act="save-key" ${busy ? "disabled" : ""}>Save and test</button>
-        </div>
-        <div class="muted">Organization Admin key from OpenAI Platform.
-          <button class="link" data-act="open-url" data-url="https://platform.openai.com/settings/organization/admin-keys">Open OpenAI Platform</button></div>`;
-    const bal = st.prefs.openAIBalance;
-    parts.push(`<div class="opt-section"><h3>Admin API</h3><div class="card">
-      ${keyBlock}
-      <div class="form-row">
-        <span>Current prepaid balance</span>
-        <input type="number" id="opt-balance" min="0" step="0.01" placeholder="0.00" value="${bal ? bal.enteredUSD : ""}" />
-        <button class="btn" data-act="set-balance">Set</button>
-        ${bal ? `<button class="btn" data-act="clear-balance">Clear</button>` : ""}
-      </div>
-    </div></div>`);
-  }
-
-  if (id === "grokbot") {
-    parts.push(`<div class="note">Needs Cursor login (same account as Grok Bot).</div>`);
-  }
-
-  parts.push(
-    `<div class="form-row"><button class="btn" data-act="go" data-route="source:${id}">View live data ›</button></div>`,
-  );
-  return parts.join("");
+  return sourceView(st, id);
 }
 
 // ---------- render ----------
@@ -979,7 +962,7 @@ async function setSource(id: SourceId, patch: Partial<SourcePrefs>): Promise<voi
       kind: "warn",
       text: "OpenAI needs an organization Admin key (sk-admin-…). Paste it below. Saving turns the source on.",
     };
-    route = "settings:openai";
+    route = "source:openai";
     lastMainRoute = "options";
     focusKeyInput = true;
   } else if (!res.ok) {
@@ -1236,8 +1219,8 @@ document.querySelectorAll<HTMLButtonElement>(".tab").forEach((t) => {
 el.refresh.addEventListener("click", () => void runAction("refresh", el.refresh));
 el.options.addEventListener("click", () => go("options"));
 el.back.addEventListener("click", () => {
-  if (route.startsWith("settings:") || route === "notifications") go("options");
-  else if (route.startsWith("source:")) go("overview");
+  if (route === "notifications") go("options");
+  else if (route.startsWith("settings:") || route.startsWith("source:")) go("overview");
   else go(lastMainRoute === "options" || lastMainRoute === "spend" ? "overview" : lastMainRoute);
 });
 el.quit.addEventListener("click", () => void api.quit());
