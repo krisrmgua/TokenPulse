@@ -526,12 +526,25 @@ export class Engine {
         for (const m of c.byModel.slice(0, 6)) {
           out.lines.push({ label: m.model, value: exactMoney(m.spendUSD) });
         }
-        if (c.planUsage) {
+        if (c.planUsage?.dollarAllowance) {
           out.lines.push({
             label: "Included usage",
             value: `${Math.round(c.planUsage.totalPercentUsed)}% of ${exactMoney(c.planUsage.limitUSD)}`,
           });
         }
+      } else if (c.unifiedWeekly) {
+        const pct = cursorPersonalPercentLeft(c, p.cursorPersonalAllowanceUSD);
+        const end = c.planUsage?.billingCycleEnd;
+        const plan = c.planName ?? "Premium";
+        out.meters.push({
+          id: "included",
+          label: "Weekly",
+          percentLeft: pct,
+          resetAt: end ? new Date(end).toISOString() : undefined,
+        });
+        out.barText = `CU ${barPercent(pct, end ? new Date(end) : undefined)}`;
+        out.lines.push({ label: "Plan", value: plan });
+        out.combinedUsage = true;
       } else {
         const pct = cursorPersonalPercentLeft(c, p.cursorPersonalAllowanceUSD);
         const end = c.planUsage?.billingCycleEnd;
@@ -543,7 +556,7 @@ export class Engine {
         };
         out.meters.push(meter);
         out.barText = `CU ${barPercent(pct, end ? new Date(end) : undefined)}`;
-        out.lines.push({ label: "Plan", value: "Pro" });
+        out.lines.push({ label: "Plan", value: c.planName ?? "Pro" });
       }
       out.lines.push({ label: "Cursor user id", value: String(c.userId) });
     }
@@ -648,6 +661,7 @@ export class Engine {
         resetAt: g.resetAt ? new Date(g.resetAt).toISOString() : undefined,
       });
       out.barText = `GRK ${barPercent(g.percentLeft, g.resetAt ? new Date(g.resetAt) : undefined)}`;
+      if (g.unified) out.combinedUsage = true;
       if (g.planLabel) out.lines.push({ label: "Grok plan", value: g.planLabel });
       if (g.cursorPlanName) out.lines.push({ label: "Cursor plan", value: g.cursorPlanName });
       if (g.resetAt) out.lines.push({ label: "Resets", value: shortDate(new Date(g.resetAt)) });

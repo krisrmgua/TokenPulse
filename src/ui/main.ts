@@ -183,13 +183,23 @@ function accountLabel(id: SourceId, account: AccountMode): string {
   return account === "work" ? "Work spend" : "Personal allowance";
 }
 
+/** Live Cursor consumer plan. Legacy Pro is monthly; Premium and the other X plans are a shared weekly pool. */
+function cursorPersonalCopy(s: SourceSnapshot): { badge: string; subtitle: string } {
+  const plan = s.lines.find((line) => line.label === "Plan")?.value ?? "Pro";
+  const weekly = s.meters.some((meter) => /week/i.test(meter.label));
+  return {
+    badge: `${plan} plan`,
+    subtitle: weekly ? `${plan} plan · weekly usage` : `${plan} plan · monthly usage`,
+  };
+}
+
 /** Overview card subtitle — matches Swift `providerSubtitle`. */
 function providerSubtitle(s: SourceSnapshot): string {
   switch (s.id) {
     case "chatgpt":
       return s.account === "personal" ? "Plus plan · 5-hour / weekly usage" : "Work credits · planning estimate";
     case "cursor":
-      return s.account === "personal" ? "Pro plan · monthly usage" : "Work spend · today / month";
+      return s.account === "personal" ? cursorPersonalCopy(s).subtitle : "Work spend · today / month";
     case "claude":
       return s.account === "personal" ? "Pro plan · 5-hour / weekly usage" : "Work spend · today / month";
     case "grokbot":
@@ -701,11 +711,14 @@ function sourceView(st: AppState, id: SourceId): string {
     ${providerMark(s.id, 36)}
     <div>
       <h2>${escapeHtml(s.name)}</h2>
-      <span class="badge">${escapeHtml(accountLabel(s.id, s.account))}</span>
+      <span class="badge">${escapeHtml(s.id === "cursor" && s.account === "personal" ? cursorPersonalCopy(s).badge : accountLabel(s.id, s.account))}</span>
     </div>
     <span class="spacer"></span>
     <span class="status-line ${s.status}">${STATUS_LABEL[s.status]}${s.fetchedAt ? ` · ${escapeHtml(clockTime(s.fetchedAt))}` : ""}</span>
   </div>`);
+  if (s.combinedUsage && (s.id === "cursor" || s.id === "grokbot")) {
+    parts.push(`<div class="note combined-note"><p>Cursor and Grok Bot share one weekly pool. Use Show in menu bar on just one of them.</p></div>`);
+  }
   if (s.enabled) {
     const figs: [string, string, string?][] = [];
     if (s.id === "openai") {

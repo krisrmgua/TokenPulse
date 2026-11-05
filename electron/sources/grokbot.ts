@@ -7,7 +7,18 @@ export interface GrokBotSnapshot {
   resetAt?: number;
   planLabel?: string;
   cursorPlanName?: string;
+  /** Same weekly pool as Cursor on the X subscription. */
+  unified?: boolean;
   fetchedAt: number;
+}
+
+/** Plan identity from GetSandUsageStatus, shared by Grok Bot and Cursor. */
+export interface CursorPlanIdentity {
+  planName?: string;
+  /** The X Subscription: one weekly pool across Cursor, Grok, and Grok Bot. */
+  unified: boolean;
+  usagePercent?: number;
+  resetAt?: number;
 }
 
 function str(obj: Record<string, unknown>, ...keys: string[]): string | undefined {
@@ -25,6 +36,26 @@ export function isPooledEnterprise(obj: Record<string, unknown>): boolean {
   );
 }
 
+export function parseCursorPlanIdentity(obj: unknown): CursorPlanIdentity | undefined {
+  if (!isRecord(obj)) return undefined;
+  const planName = str(obj, "cursorPlanName", "cursor_plan_name");
+  const brand = str(obj, "billingBrand", "billing_brand");
+  const unified =
+    obj.isUnified === true ||
+    obj.is_unified === true ||
+    (brand !== undefined && brand.includes("GROK"));
+  const usagePercent = optionalNumber(obj, "usagePercent") ?? optionalNumber(obj, "usage_percent");
+  const resetRaw = str(obj, "nextResetTimestampUtc", "next_reset_timestamp_utc");
+  const reset = resetRaw ? Date.parse(resetRaw) : NaN;
+  if (!planName && !unified && usagePercent === undefined) return undefined;
+  return {
+    planName,
+    unified,
+    usagePercent,
+    resetAt: Number.isFinite(reset) ? reset : undefined,
+  };
+}
+
 export function parseSandUsage(obj: unknown, now = Date.now()): GrokBotSnapshot | undefined {
   if (!isRecord(obj) || isPooledEnterprise(obj)) return undefined;
   const used = optionalNumber(obj, "usagePercent") ?? optionalNumber(obj, "usage_percent");
@@ -37,6 +68,10 @@ export function parseSandUsage(obj: unknown, now = Date.now()): GrokBotSnapshot 
     resetAt: Number.isFinite(reset) ? reset : undefined,
     planLabel: str(obj, "grokPlanLabel", "grok_plan_label"),
     cursorPlanName: str(obj, "cursorPlanName", "cursor_plan_name"),
+    unified:
+      obj.isUnified === true ||
+      obj.is_unified === true ||
+      (str(obj, "billingBrand", "billing_brand") ?? "").includes("GROK"),
     fetchedAt: now,
   };
 }
