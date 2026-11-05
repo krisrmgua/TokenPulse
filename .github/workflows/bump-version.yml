@@ -1,0 +1,66 @@
+# After every push to main (feature merges), bump the patch version and
+# land it via a short-lived PR so this also works with branch protection.
+# Release commits include [skip ci] so this job does not loop.
+name: bump-version
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: bump-version
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    if: >-
+      github.event.head_commit != null &&
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !startsWith(github.event.head_commit.message, 'chore: release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Bump patch
+        id: ver
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version patch --no-git-tag-version
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Bumped to $VERSION"
+
+      - name: Create release PR
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: release ${{ steps.ver.outputs.version }} [skip ci]"
+          title: "chore: release ${{ steps.ver.outputs.version }}"
+          body: Automated patch bump after a merge to main. Do not edit version by hand in feature PRs.
+          branch: chore/release-version
+          delete-branch: true
+
+      - name: Merge release PR and tag
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          PR: ${{ steps.cpr.outputs.pull-request-number }}
+        run: |
+          gh pr merge "$PR" --squash \
+            --subject "chore: release ${VERSION} [skip ci]" \
+            --body "Automated patch bump." \
+            --delete-branch
+          git fetch origin main
+          git tag -f "v${VERSION}" "origin/main"
+          git push origin "v${VERSION}"
