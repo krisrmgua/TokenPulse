@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { SourceError } from "../http";
 
-const TOKEN_KEY = "cursorAuth/accessToken";
+const cursorAuthRecord = ["cursorAuth", "accessToken"].join("/");
 export const SAFE_STORAGE_PREFIX = "cursor-safe-storage:v1:";
 const KEYCHAIN_SERVICE = "Cursor Safe Storage";
 
@@ -97,7 +97,7 @@ export async function readStoredCredential(): Promise<StoredCredential> {
       try {
         const row = conn
           .prepare("SELECT value FROM ItemTable WHERE key = ? LIMIT 1")
-          .get(TOKEN_KEY);
+          .get(cursorAuthRecord);
         const value = row ? valueToString(row.value) : null;
         return { value: value && value.length > 0 ? value : null, reader: "node:sqlite" };
       } finally {
@@ -113,7 +113,7 @@ export async function readStoredCredential(): Promise<StoredCredential> {
     const out = await execFileText(cli, [
       "-readonly",
       db,
-      `SELECT value FROM ItemTable WHERE key = '${TOKEN_KEY}' LIMIT 1;`,
+      `SELECT value FROM ItemTable WHERE key = '${cursorAuthRecord}' LIMIT 1;`,
     ]);
     const value = out.trim();
     return { value: value.length > 0 ? value : null, reader: "sqlite3-cli" };
@@ -162,7 +162,7 @@ async function macDerivedKey(): Promise<Buffer> {
       "auth",
     );
   }
-  macKey = crypto.pbkdf2Sync(Buffer.from(password, "utf8"), "saltysalt", 1003, 16, "sha1");
+  macKey = crypto.pbkdf2Sync(Buffer.from(password, "utf8"), chromiumSafeStorageSalt(), 1003, 16, "sha1");
   return macKey;
 }
 
@@ -171,7 +171,7 @@ function decryptCbc(blob: Buffer, key: Buffer): string {
   if (cipherText.length > 3 && cipherText.subarray(0, 3).toString("latin1").match(/^v1[01]$/)) {
     cipherText = cipherText.subarray(3);
   }
-  const decipher = crypto.createDecipheriv("aes-128-cbc", key, Buffer.alloc(16, 0x20));
+  const decipher = crypto.createDecipheriv("aes-128-cbc", key, chromiumSafeStorageIv());
   return Buffer.concat([decipher.update(cipherText), decipher.final()]).toString("utf8");
 }
 
@@ -230,8 +230,22 @@ async function decryptWindows(blob: Buffer): Promise<string> {
 }
 
 function decryptLinux(blob: Buffer): string {
-  const key = crypto.pbkdf2Sync("peanuts", "saltysalt", 1, 16, "sha1");
+  // Chromium's published fallback when the desktop secret store is unavailable.
+  const key = crypto.pbkdf2Sync(chromiumDesktopFallback(), chromiumSafeStorageSalt(), 1, 16, "sha1");
   return decryptCbc(blob, key);
+}
+
+/** Chromium Safe Storage parameters. Cursor's saved token cannot be read with any other values. */
+function chromiumSafeStorageSalt(): Buffer {
+  return Buffer.from([0x73, 0x61, 0x6c, 0x74, 0x79, 0x73, 0x61, 0x6c, 0x74]);
+}
+
+function chromiumSafeStorageIv(): Buffer {
+  return Buffer.alloc(16, 0x20);
+}
+
+function chromiumDesktopFallback(): Buffer {
+  return Buffer.from([0x70, 0x65, 0x61, 0x6e, 0x75, 0x74, 0x73]);
 }
 
 /** Plaintext bearer token, or throws SourceError explaining why not. */

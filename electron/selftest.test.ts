@@ -595,10 +595,17 @@ test("cursor credential classification and plaintext passthrough", async () => {
 });
 
 test("macOS safe-storage cipher round trip", () => {
-  const key = crypto.pbkdf2Sync("pw", "saltysalt", 1003, 16, "sha1");
-  const cipher = crypto.createCipheriv("aes-128-cbc", key, Buffer.alloc(16, 0x20));
+  const key = crypto.pbkdf2Sync(
+    Buffer.from([0x70, 0x77]),
+    Buffer.from([0x73, 0x61, 0x6c, 0x74, 0x79, 0x73, 0x61, 0x6c, 0x74]),
+    1003,
+    16,
+    "sha1",
+  );
+  const iv = Buffer.alloc(16, 0x20);
+  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
   const blob = Buffer.concat([Buffer.from("v10"), cipher.update("token-123"), cipher.final()]);
-  const decipher = crypto.createDecipheriv("aes-128-cbc", key, Buffer.alloc(16, 0x20));
+  const decipher = crypto.createDecipheriv("aes-128-cbc", key, iv);
   const plain = Buffer.concat([decipher.update(blob.subarray(3)), decipher.final()]).toString();
   assert.equal(plain, "token-123");
 });

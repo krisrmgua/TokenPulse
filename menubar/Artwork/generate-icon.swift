@@ -1,6 +1,7 @@
 import AppKit
-let output = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
+let output = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: output.path)
 for size in [16,32,128,256,512] {
     for scale in [1,2] {
         let pixels = size * scale

@@ -19,10 +19,15 @@ app.whenReady().then(async () => {
   const output = path.join(root, 'docs/screenshots');
   fs.mkdirSync(output, { recursive: true });
   const errors = [];
+  const preloadSource = fs.readFileSync(path.join(__dirname, 'screenshots/preload.cjs'), 'utf8');
+  const fixtureRequire = "const fixture = require('./fixture.cjs');";
+  if (!preloadSource.includes(fixtureRequire)) throw new Error('screenshot preload is missing the fixture import');
+  const preloadPath = path.join(temporary, 'preload.cjs');
+  fs.writeFileSync(preloadPath, preloadSource.replace(fixtureRequire, `const fixture = ${JSON.stringify(fixture)};`));
   const win = new BrowserWindow({ width: fixture.width, height: fixture.minHeight || 200,
     show: false, frame: false, useContentSize: true, backgroundColor: '#0e1929',
-    webPreferences: { preload: path.join(__dirname, 'screenshots/preload.cjs'),
-      contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false } });
+    webPreferences: { preload: preloadPath,
+      contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false } });
   ipcMain.on('capture:fit', (_event, width, height) => {
     win.setContentSize(Math.round(width || fixture.width),
       Math.max(fixture.minHeight || 140, Math.min(fixture.maxHeight || 760, Math.ceil(height))));
