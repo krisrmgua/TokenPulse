@@ -410,7 +410,16 @@ That installs `~/Applications/TokenPulse-Swift.app` (`com.kris.tokenpulse.swift`
 
 ## Version
 
-The shipping version is `package.json` → `version` (currently **0.5.54**). The panel shows it as `v0.5.54` in Options and in the footer. Bump that field before each release you push and package; Electron Builder embeds it so `app.getVersion()` matches.
+The shipping version lives in `package.json` → `version`. Electron Builder embeds it, so the panel footer/header (`vX.Y.Z`) matches `app.getVersion()`.
+
+**Do not bump the version in feature PRs.** Every merge to `main` runs [`.github/workflows/bump-version.yml`](.github/workflows/bump-version.yml), which:
+
+1. Bumps the **patch** (for example `0.3.9` → `0.3.10`)
+2. Opens a short-lived release PR and squash-merges it as `chore: release X.Y.Z [skip ci]`
+3. Tags `vX.Y.Z` on `main`
+
+The `[skip ci]` marker stops the bump job from looping on its own commit.
+
 
 ## License
 
