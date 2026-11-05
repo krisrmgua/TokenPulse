@@ -1,9 +1,14 @@
 # GitHub CodeQL on every pull request. Public repos get this free.
 # A finding fails the check. main requires this check, so a request cannot merge until it is clean.
+#
+# pull_request_target also runs for same-repo bot PRs (GITHUB_TOKEN pushes do not
+# fire pull_request workflows). Fork PRs are skipped on that path.
 name: code-scanning
 
 on:
   pull_request:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 permissions:
   actions: read
@@ -11,16 +16,21 @@ permissions:
   security-events: write
 
 concurrency:
-  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   codeql:
     name: CodeQL scan
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: github/codeql-action/init@v4
         with:
