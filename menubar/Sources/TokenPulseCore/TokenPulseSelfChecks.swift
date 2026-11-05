@@ -125,6 +125,11 @@ enum TokenPulseSelfChecks {
         let expectedProj = 25.0 * Double(daysInAug) / 10.0
         check("per-source projected = month * days/day",
               abs(projectedMonthEnd(monthUSD: 25.0, now: projNow) - expectedProj) < 0.001)
+        // Nov 10, 2026 (Tue): Mon 2–Fri 6 + Mon 9–Tue 10 = 7 workdays
+        let workdayNow = cal.date(from: DateComponents(year: 2026, month: 11, day: 10))!
+        check("workdays elapsed skips weekends", workdaysElapsed(now: workdayNow) == 7)
+        check("workday daily avg = month / Mon–Fri days",
+              abs(workdayDailyAvg(monthUSD: 140.0, now: workdayNow) - 20.0) < 0.001)
         let openAIJSON = """
         {"data":[{"start_time":1,"end_time":2,"results":[
           {"amount":{"value":1.25,"currency":"usd"},"line_item":"Responses API"},

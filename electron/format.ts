@@ -28,6 +28,25 @@ export function projectedMonthEnd(monthUSD: number, now: Date = new Date()): num
   return day > 0 ? (monthUSD * daysInMonth(now)) / day : monthUSD;
 }
 
+/** Mon–Fri days from the 1st through `now` (inclusive). Weekends are skipped. */
+export function workdaysElapsed(now: Date = new Date()): number {
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const last = now.getDate();
+  let count = 0;
+  for (let d = 1; d <= last; d++) {
+    const dow = new Date(y, m, d).getDay();
+    if (dow !== 0 && dow !== 6) count += 1;
+  }
+  return count;
+}
+
+/** Month-to-date spend averaged over elapsed workdays (Mon–Fri only). */
+export function workdayDailyAvg(monthUSD: number, now: Date = new Date()): number {
+  const days = workdaysElapsed(now);
+  return days > 0 ? monthUSD / days : monthUSD;
+}
+
 export function exactMoney(usd: number): string {
   return `$${usd.toLocaleString("en-US", {
     minimumFractionDigits: 2,
