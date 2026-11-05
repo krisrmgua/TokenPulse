@@ -2,8 +2,9 @@
 # land it via a short-lived PR so this also works with branch protection.
 # Release commits include [skip ci] so this job does not loop.
 #
-# Waits for required checks (CodeQL) before merging — bot PRs get that
-# check via pull_request_target in codeql.yml.
+# Bot PRs created with GITHUB_TOKEN do not get workflow checks, so this
+# merges as soon as the PR opens (main still requires a PR; CodeQL still
+# runs on human feature PRs).
 name: bump-version
 
 on:
@@ -53,7 +54,7 @@ jobs:
           branch: chore/release-version
           delete-branch: true
 
-      - name: Wait for checks, merge release PR, and tag
+      - name: Merge release PR and tag
         if: steps.cpr.outputs.pull-request-number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,9 +62,6 @@ jobs:
           PR: ${{ steps.cpr.outputs.pull-request-number }}
         run: |
           set -euo pipefail
-          # Give pull_request_target a moment to register the check.
-          sleep 15
-          gh pr checks "$PR" --watch --fail-fast --interval 10
           gh pr merge "$PR" --squash \
             --subject "chore: release ${VERSION} [skip ci]" \
             --body "Automated patch bump." \
