@@ -162,6 +162,8 @@ export interface SourceSnapshot {
   resetNote?: string;
   /** Short tray fragment, e.g. `CU $2.10/$84`. */
   barText?: string;
+  /** Cursor and Grok Bot are drawing from the same weekly pool. */
+  combinedUsage?: boolean;
   /** Where the credential comes from on this machine. */
   credential: string;
 }

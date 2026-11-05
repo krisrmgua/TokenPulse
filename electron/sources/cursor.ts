@@ -1,4 +1,5 @@
 import { SourceError, requestJSON } from "../http";
+import { parseCursorPlanIdentity, type CursorPlanIdentity } from "./grokbot";
 import {
   isRecord,
   numberField,
@@ -20,8 +21,11 @@ export interface CursorUsageAgg {
 }
 
 export interface CursorPlanUsage {
+  /** Positive only for a legacy dollar allowance. The shared weekly pool sends no limit. */
   limitUSD: number;
   includedSpendUSD: number;
+  /** Legacy Pro/Team included dollars. False for the shared weekly X subscription. */
+  dollarAllowance: boolean;
   totalPercentUsed: number;
   percentLeft: number;
   billingCycleStart?: number;
@@ -34,6 +38,10 @@ export interface CursorSpendSnapshot {
   byModel: CursorUsageAgg[];
   userId: number;
   planUsage?: CursorPlanUsage;
+  /** From GetSandUsageStatus, e.g. Pro or Premium. */
+  planName?: string;
+  /** One weekly pool shared with Grok and Grok Bot. */
+  unifiedWeekly: boolean;
   fetchedAt: number;
 }
 
@@ -63,15 +71,20 @@ export function parsePlanUsage(obj: unknown): CursorPlanUsage | undefined {
   if (!isRecord(obj) || !isRecord(obj.planUsage)) return undefined;
   const plan = obj.planUsage;
   const limitCents = numberField(plan, "limit");
-  if (limitCents <= 0) return undefined;
-  const totalPct = numberField(plan, "totalPercentUsed");
+  const totalPct = optionalNumber(plan, "totalPercentUsed");
+  // A zero limit with no percent is an empty payload. The shared weekly pool
+  // omits the dollar limit and still sends totalPercentUsed.
+  if (limitCents <= 0 && totalPct === undefined) return undefined;
+  const used = totalPct ?? 0;
   const start = optionalNumber(obj, "billingCycleStart");
   const end = optionalNumber(obj, "billingCycleEnd");
+  const dollarAllowance = limitCents > 0;
   return {
-    limitUSD: limitCents / 100,
-    includedSpendUSD: numberField(plan, "includedSpend") / 100,
-    totalPercentUsed: totalPct,
-    percentLeft: percentLeftFromUsed(totalPct),
+    limitUSD: dollarAllowance ? limitCents / 100 : 0,
+    includedSpendUSD: dollarAllowance ? numberField(plan, "includedSpend") / 100 : 0,
+    dollarAllowance,
+    totalPercentUsed: used,
+    percentLeft: percentLeftFromUsed(used),
     billingCycleStart: start && start > 0 ? start : undefined,
     billingCycleEnd: end && end > 0 ? end : undefined,
   };
@@ -85,6 +98,18 @@ export function cursorPersonalPercentLeft(
   if (snap.planUsage) return snap.planUsage.percentLeft;
   if (allowanceUSD <= 0) return 0;
   return percentLeftFromUsed((snap.totalSpendUSD / allowanceUSD) * 100);
+}
+
+function planFromIdentity(identity: CursorPlanIdentity | undefined): CursorPlanUsage | undefined {
+  if (!identity || identity.usagePercent === undefined) return undefined;
+  return {
+    limitUSD: 0,
+    includedSpendUSD: 0,
+    dollarAllowance: false,
+    totalPercentUsed: identity.usagePercent,
+    percentLeft: percentLeftFromUsed(identity.usagePercent),
+    billingCycleEnd: identity.resetAt,
+  };
 }
 
 function headers(token: string, connect: boolean): Record<string, string> {
@@ -129,18 +154,23 @@ export class CursorClient {
         endDate: now.getTime(),
       });
 
-    const [month, today, period] = await Promise.allSettled([
+    const [month, today, period, sand] = await Promise.allSettled([
       aggregates(startOfMonth(now)),
       aggregates(startOfDay(now)),
       post(token, "GetCurrentPeriodUsage", {}, true),
+      post(token, "GetSandUsageStatus", {}, true),
     ]);
 
     const planUsage =
       period.status === "fulfilled" ? parsePlanUsage(period.value) : undefined;
+    const identity =
+      sand.status === "fulfilled" ? parseCursorPlanIdentity(sand.value) : undefined;
+    const unifiedWeekly =
+      identity?.unified === true || (planUsage != null && !planUsage.dollarAllowance);
     const monthRows =
       month.status === "fulfilled" ? parseAggregations(month.value) : undefined;
     if (!monthRows) {
-      if (!planUsage) {
+      if (!planUsage && !identity) {
         const reason = month.status === "rejected" ? month.reason : undefined;
         if (reason instanceof SourceError) throw reason;
         throw new SourceError("Cursor returned an unreadable usage response.");
@@ -150,7 +180,9 @@ export class CursorClient {
         totalSpendUSD: 0,
         byModel: [],
         userId,
-        planUsage,
+        planUsage: planUsage ?? (unifiedWeekly ? planFromIdentity(identity) : undefined),
+        planName: identity?.planName,
+        unifiedWeekly,
         fetchedAt: now.getTime(),
       };
     }
@@ -160,7 +192,9 @@ export class CursorClient {
       totalSpendUSD: parseTotalSpendUSD(month.status === "fulfilled" ? month.value : undefined),
       byModel: monthRows,
       userId,
-      planUsage,
+      planUsage: planUsage ?? (unifiedWeekly ? planFromIdentity(identity) : undefined),
+      planName: identity?.planName,
+      unifiedWeekly,
       fetchedAt: now.getTime(),
     };
   }

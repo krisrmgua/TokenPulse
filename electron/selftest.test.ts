@@ -19,7 +19,7 @@ import {
   startOfNextMonth,
 } from "./format";
 import { parseAggregations, parsePlanUsage, parseTotalSpendUSD, cursorPersonalPercentLeft } from "./sources/cursor";
-import { parseSandUsage } from "./sources/grokbot";
+import { parseCursorPlanIdentity, parseSandUsage } from "./sources/grokbot";
 import { parseRateLimits, parseWorkUsage, workEstimatedUSD, workTodayIsPending } from "./sources/chatgpt";
 import { parseCostPage, requestURL, totalUSD, lineItems, estimateBalance } from "./sources/openai";
 import { parseTranscriptLine, summarize } from "./sources/claude";
@@ -118,16 +118,51 @@ test("cursor dashboard parsing", () => {
   });
   assert.equal(plan?.percentLeft, 75);
   assert.equal(plan?.limitUSD, 20);
+  assert.equal(plan?.dollarAllowance, true);
   assert.equal(plan?.billingCycleEnd, 1762000000000);
   assert.equal(parsePlanUsage({ planUsage: { limit: 0 } }), undefined);
-  const snap = { todaySpendUSD: 0, totalSpendUSD: 5, byModel: [], userId: 1, fetchedAt: 0 };
+  const weekly = parsePlanUsage({
+    planUsage: { totalPercentUsed: 0.715, remainingBonus: false },
+    billingCycleEnd: "1794498356802",
+  });
+  assert.equal(weekly?.dollarAllowance, false);
+  assert.equal(weekly?.percentLeft, 99);
+  assert.equal(weekly?.billingCycleEnd, 1794498356802);
+  const snap = {
+    todaySpendUSD: 0,
+    totalSpendUSD: 5,
+    byModel: [],
+    userId: 1,
+    unifiedWeekly: false,
+    fetchedAt: 0,
+  };
   assert.equal(cursorPersonalPercentLeft(snap, 20), 75);
+  assert.equal(cursorPersonalPercentLeft({ ...snap, planUsage: weekly, unifiedWeekly: true }, 20), 99);
+});
+
+test("unified cursor plan is the shared weekly pool", () => {
+  const identity = parseCursorPlanIdentity({
+    cursorPlanName: "Premium",
+    isUnified: true,
+    billingBrand: "SAND_BILLING_BRAND_GROK",
+    usagePercent: 0.715,
+    nextResetTimestampUtc: "2026-11-12T15:45:56.802Z",
+  });
+  assert.equal(identity?.planName, "Premium");
+  assert.equal(identity?.unified, true);
+  assert.equal(identity?.usagePercent, 0.715);
+  assert.equal(parseCursorPlanIdentity({ cursorPlanName: "Pro", isUnified: false })?.unified, false);
 });
 
 test("grok bot sand usage", () => {
   const s = parseSandUsage({ usagePercent: 39, nextResetTimestampUtc: "2026-11-09T00:00:00Z" });
   assert.equal(s?.percentLeft, 61);
   assert.ok(s?.resetAt);
+  assert.equal(s?.unified, false);
+  assert.equal(
+    parseSandUsage({ usagePercent: 1, isUnified: true, billingBrand: "SAND_BILLING_BRAND_GROK" })?.unified,
+    true,
+  );
   assert.equal(parseSandUsage({ usagePercent: 10, usesPooledEnterpriseAllowance: true }), undefined);
 });
 
