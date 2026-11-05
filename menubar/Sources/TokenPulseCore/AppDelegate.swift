@@ -590,8 +590,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let month = (claudeWork ? r.monthUSD : 0) + (cursorSpend?.totalSpendUSD ?? 0) + (chatSpend?.estimatedUSD ?? 0)
         let hasWorkSpend = claudeWork || cursorSpend != nil || chatSpend != nil
         let projected = projectedMonthEnd(monthUSD: month)
-        mission.combinedAmounts = hasWorkSpend ? [today, month, projected] : []
-        mission.combinedLines = hasWorkSpend ? ["Today: \(Fmt.money(today))", "Month: \(Fmt.money(month))", "Projected month-end: \(Fmt.money(projected))"] : []
+        let workdayAvg = workdayDailyAvg(monthUSD: month)
+        mission.combinedAmounts = hasWorkSpend ? [today, month, workdayAvg, projected] : []
+        mission.combinedLines = hasWorkSpend ? [
+            "Today: \(Fmt.money(today))",
+            "Month: \(Fmt.money(month))",
+            "Workday avg: \(Fmt.money(workdayAvg))",
+            "Projected month-end: \(Fmt.money(projected))",
+        ] : []
         if hasWorkSpend {
             spendLedger.record(dayUSD: today, monthUSD: month)
         }

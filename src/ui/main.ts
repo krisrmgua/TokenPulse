@@ -1,5 +1,5 @@
 import { barDesignsFor, isStacked, type BarDesign } from "../../electron/barDesign";
-import { displayDate, formatTokens } from "../../electron/format";
+import { displayDate, formatTokens, workdayDailyAvg } from "../../electron/format";
 import {
   POLICY_CAP,
   tintBalanceUSD,
@@ -536,6 +536,8 @@ function spendView(st: AppState): string {
     const tintPrefs = appTintPrefs(prefs);
     const dayTint = rgbCss(tintCombinedSpendUSD(st.combined.todayUSD, "day", sources, tintPrefs));
     const monthTint = rgbCss(tintCombinedSpendUSD(st.combined.monthUSD, "month", sources, tintPrefs));
+    const workdayAvg = workdayDailyAvg(st.combined.monthUSD);
+    const avgTint = rgbCss(tintCombinedSpendUSD(workdayAvg, "day", sources, tintPrefs));
     const projTint = rgbCss(
       tintCombinedSpendUSD(st.combined.projectedUSD, "month", sources, tintPrefs),
     );
@@ -543,6 +545,7 @@ function spendView(st: AppState): string {
       metricsHtml([
         ["Today", money(st.combined.todayUSD), dayTint],
         ["Month", money(st.combined.monthUSD), monthTint],
+        ["Workday avg", money(workdayAvg), avgTint],
         ["Proj. eom", money(st.combined.projectedUSD), projTint],
       ]),
     );
@@ -1049,9 +1052,11 @@ function renderChips(st: AppState): void {
     const color = rgbCss(tintCombinedSpendUSD(v, kind, sources, tintPrefs));
     return `<button class="chip${active}" data-act="go" data-route="spend"><span class="k">${k}</span><span class="v" style="color:${color}">${money(v)}</span></button>`;
   };
+  const workdayAvg = workdayDailyAvg(st.combined.monthUSD);
   el.chips.innerHTML =
     chip("Today", st.combined.todayUSD, "day") +
     chip("Month", st.combined.monthUSD, "month") +
+    chip("Workday avg", workdayAvg, "day") +
     chip("Proj. eom", st.combined.projectedUSD, "month");
 }
 

@@ -8,6 +8,8 @@ import { Pricing } from "./pricing";
 import { SpendLedger } from "./ledger";
 import {
   projectedMonthEnd,
+  workdayDailyAvg,
+  workdaysElapsed,
   shortMoney,
   barMoney,
   barPercent,
@@ -59,6 +61,12 @@ test("pricing.json at repo root loads", () => {
 test("projection and formatting", () => {
   const now = new Date(2026, 10, 10);
   assert.ok(Math.abs(projectedMonthEnd(100, now) - 300) < 1e-9);
+  // Nov 2026: 1=Sun … 10=Tue → workdays Mon 2–Fri 6 + Mon 9–Tue 10 = 7
+  assert.equal(workdaysElapsed(now), 7);
+  assert.ok(Math.abs(workdayDailyAvg(140, now) - 20) < 1e-9);
+  // Sunday Nov 1 only → 0 workdays, return monthUSD unchanged
+  assert.equal(workdaysElapsed(new Date(2026, 10, 1)), 0);
+  assert.equal(workdayDailyAvg(50, new Date(2026, 10, 1)), 50);
   assert.equal(shortMoney(4.123), "$4.12");
   assert.equal(shortMoney(184.6), "$185");
   assert.equal(shortMoney(1234), "$1.2k");

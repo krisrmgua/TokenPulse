@@ -255,17 +255,21 @@ struct MissionControlView: View {
                     .cornerRadius(7)
             } else {
                 HStack(spacing: 6) {
-                    ForEach(Array(model.combinedLines.prefix(3).enumerated()), id: \.offset) { index, text in
+                    ForEach(Array(model.combinedLines.prefix(4).enumerated()), id: \.offset) { index, text in
                         let parts = text.components(separatedBy: ": ")
                         let rawLabel = parts.first ?? text
-                        let label = rawLabel.hasPrefix("Projected") ? "Proj. eom" : rawLabel
+                        let label = rawLabel.hasPrefix("Projected") ? "Proj. eom"
+                            : rawLabel.hasPrefix("Workday") ? "Workday avg"
+                            : rawLabel
                         let amount = model.combinedAmounts.indices.contains(index) ? model.combinedAmounts[index] : nil
                         let value = amount.map(Fmt.exactMoney) ?? parts.dropFirst().joined(separator: ": ")
+                        // Tint: Today + Workday avg use day-scale caps; Month + Proj. eom use month.
+                        let tintIndex = (index == 0 || index == 2) ? 0 : 1
                         Button { model.show("spend") } label: {
                             VStack(alignment: .trailing, spacing: 1) {
                                 Text(label).font(.system(size: 9, weight: .medium)).foregroundColor(MissionStyle.secondary)
                                 Text(value).font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                                    .foregroundColor(amount.map { combinedSpendColor($0, index: index) } ?? MissionStyle.ink)
+                                    .foregroundColor(amount.map { combinedSpendColor($0, index: tintIndex) } ?? MissionStyle.ink)
                             }
                             .padding(.horizontal, 9)
                             .padding(.vertical, 5)
@@ -291,7 +295,8 @@ struct MissionControlView: View {
         let points = model.spendChart
         let today = model.combinedAmounts.indices.contains(0) ? model.combinedAmounts[0] : 0
         let month = model.combinedAmounts.indices.contains(1) ? model.combinedAmounts[1] : 0
-        let projected = model.combinedAmounts.indices.contains(2) ? model.combinedAmounts[2] : 0
+        let workdayAvg = model.combinedAmounts.indices.contains(2) ? model.combinedAmounts[2] : 0
+        let projected = model.combinedAmounts.indices.contains(3) ? model.combinedAmounts[3] : 0
         let recorded = points.filter { $0.actualUSD != nil }.count
         return VStack(alignment: .leading, spacing: 14) {
             Text("Month-to-date spend").font(.system(size: 18, weight: .semibold))
@@ -300,7 +305,8 @@ struct MissionControlView: View {
             HStack(spacing: 10) {
                 metricCard("Today", Fmt.exactMoney(today), color: combinedSpendColor(today, index: 0))
                 metricCard("Month", Fmt.exactMoney(month), color: combinedSpendColor(month, index: 1))
-                metricCard("Proj. eom", Fmt.exactMoney(projected), color: combinedSpendColor(projected, index: 2))
+                metricCard("Workday avg", Fmt.exactMoney(workdayAvg), color: combinedSpendColor(workdayAvg, index: 0))
+                metricCard("Proj. eom", Fmt.exactMoney(projected), color: combinedSpendColor(projected, index: 1))
             }
             if points.isEmpty {
                 note("No spend to chart yet. Enable a work source and refresh.")

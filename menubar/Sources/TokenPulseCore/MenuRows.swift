@@ -59,6 +59,26 @@ func projectedMonthEnd(monthUSD: Double, now: Date = Date()) -> Double {
     return day > 0 ? monthUSD * Double(days) / Double(day) : monthUSD
 }
 
+/// Mon–Fri days from the 1st through `now` (inclusive). Weekends are skipped.
+func workdaysElapsed(now: Date = Date()) -> Int {
+    let cal = Calendar.current
+    let last = cal.component(.day, from: now)
+    guard let start = cal.date(from: cal.dateComponents([.year, .month], from: now)) else { return 0 }
+    var count = 0
+    for offset in 0..<last {
+        guard let day = cal.date(byAdding: .day, value: offset, to: start) else { continue }
+        let weekday = cal.component(.weekday, from: day) // 1=Sun … 7=Sat
+        if weekday != 1 && weekday != 7 { count += 1 }
+    }
+    return count
+}
+
+/// Month-to-date spend averaged over elapsed workdays (Mon–Fri only).
+func workdayDailyAvg(monthUSD: Double, now: Date = Date()) -> Double {
+    let days = workdaysElapsed(now: now)
+    return days > 0 ? monthUSD / Double(days) : monthUSD
+}
+
 /// The user's source toggles apply to the entire menu presentation, not only
 /// the compact status-bar title. Defaults match upstream: Cursor + Claude.
 struct MenuSourceVisibility {
@@ -102,6 +122,8 @@ func tokenpulseMenuRows(_ r: Rollup, _ eff: EfficiencyResult, _ config: Config,
         rows.append(.header("Your spend"))
         rows.append(.body(
             "  Today: \(Fmt.money(combinedToday))   ·   Month: \(Fmt.money(combinedMonth))"))
+        rows.append(.body(
+            "  Workday avg: \(Fmt.money(workdayDailyAvg(monthUSD: combinedMonth)))"))
         rows.append(.body(
             "  Projected month-end: \(Fmt.money(projectedMonthEnd(monthUSD: combinedMonth)))"))
         rows.append(.separator)
