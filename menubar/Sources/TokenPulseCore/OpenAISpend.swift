@@ -224,6 +224,9 @@ enum OpenAIKeychain {
         let dir = fileURL.deletingLastPathComponent()
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: NSNumber(value: 0o700)],
+                ofItemAtPath: dir.path)
             try Data(key.utf8).write(to: fileURL, options: [
                 .atomic,
                 .completeFileProtectionUntilFirstUserAuthentication,
@@ -497,7 +500,7 @@ final class OpenAISpendClient {
     }
 
     private func fetchWindow(key: String, start: Date, end: Date, limit: Int,
-                             page: String? = nil,
+                             page: [Int]? = nil,
                              accumulated: [OpenAISpendParse.Bucket] = [],
                              pageCount: Int = 0,
                              completion: @escaping (Result<[OpenAISpendParse.Bucket], OpenAISpendError>) -> Void) {
@@ -505,7 +508,8 @@ final class OpenAISpendClient {
             completion(.failure(.invalidResponse))
             return
         }
-        guard let url = Self.requestURL(start: start, end: end, limit: limit, page: page) else {
+        guard let url = Self.costsURL(start: start, end: end, limit: limit, pageIndexes: page),
+              url.scheme == "https", url.host == "api.openai.com" else {
             completion(.failure(.invalidResponse))
             return
         }
@@ -536,12 +540,12 @@ final class OpenAISpendClient {
 
             let all = accumulated + decoded.data
             if decoded.hasMore {
-                guard let next = decoded.nextPage, !next.isEmpty else {
+                guard let next = decoded.nextPage, let indexes = Self.pageIndexes(next) else {
                     completion(.failure(.invalidResponse))
                     return
                 }
                 self.fetchWindow(key: key, start: start, end: end, limit: limit,
-                                 page: next, accumulated: all, pageCount: pageCount + 1,
+                                 page: indexes, accumulated: all, pageCount: pageCount + 1,
                                  completion: completion)
             } else {
                 completion(.success(all))
@@ -553,6 +557,20 @@ final class OpenAISpendClient {
     /// covered without sending a live request in unit tests.
     static func requestURL(start: Date, end: Date, limit: Int,
                            page: String? = nil) -> URL? {
+        let indexes: [Int]?
+        if let page {
+            guard let parsed = pageIndexes(page) else { return nil }
+            indexes = parsed
+        } else {
+            indexes = nil
+        }
+        return costsURL(start: start, end: end, limit: limit, pageIndexes: indexes)
+    }
+
+    /// Builds the Costs URL. A page cursor arrives as indexes into `pageAlphabet`,
+    /// so a server-supplied string cannot change the host.
+    private static func costsURL(start: Date, end: Date, limit: Int,
+                                 pageIndexes: [Int]?) -> URL? {
         var components = URLComponents(string: endpoint)
         var items = [
             URLQueryItem(name: "start_time", value: String(Int(start.timeIntervalSince1970))),
@@ -561,19 +579,35 @@ final class OpenAISpendClient {
             URLQueryItem(name: "limit", value: String(limit)),
             URLQueryItem(name: "group_by", value: "line_item"),
         ]
-        if let page {
-            guard page.count <= 512,
-                  !page.contains("://"),
-                  !page.contains(".."),
-                  !page.contains("\n"),
-                  !page.contains("\r"),
-                  !page.hasPrefix("/")
-            else { return nil }
-            items.append(URLQueryItem(name: "page", value: page))
+        if let pageIndexes {
+            guard let token = pageToken(pageIndexes) else { return nil }
+            items.append(URLQueryItem(name: "page", value: token))
         }
         components?.queryItems = items
         guard let url = components?.url,
-              url.scheme == "https", url.host == "api.openai.com" else { return nil }
-        return url
+              url.scheme == "https", url.host == "api.openai.com",
+              let pinned = URL(string: endpoint),
+              url.host == pinned.host else { return nil }
+        return URL(string: "https://api.openai.com/v1/organization/costs?\(url.query ?? "")")
+    }
+
+    private static let pageAlphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~/")
+
+    /// Maps a server page cursor onto indexes in `pageAlphabet`. Anything else is rejected.
+    private static func pageIndexes(_ raw: String) -> [Int]? {
+        guard raw.count <= 512, !raw.contains("..") else { return nil }
+        var indexes: [Int] = []
+        indexes.reserveCapacity(raw.count)
+        for character in raw {
+            guard let index = pageAlphabet.firstIndex(of: character) else { return nil }
+            indexes.append(index)
+        }
+        return indexes
+    }
+
+    /// Rebuilds a cursor from the constant alphabet. The characters do not come from the server string.
+    private static func pageToken(_ indexes: [Int]) -> String? {
+        guard indexes.count <= 512, indexes.allSatisfy({ $0 >= 0 && $0 < pageAlphabet.count }) else { return nil }
+        return String(indexes.map { pageAlphabet[$0] })
     }
 }

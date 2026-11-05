@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json",
     "build": "npm run build:ui && npm run build:electron",
     "start": "npm run build && electron .",
-    "dev": "npm run build:electron && concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && TOKENPULSE_DEV=1 electron .\"",
+    "dev": "npm run build:electron && concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && TOKENPULSE_DEV=1 TOKENPULSE_DEV_SERVER=http://127.0.0.1:5173 electron .\"",
     "pack:mac": "npm run build && electron-builder --mac",
     "pack:win": "npm run build && electron-builder --win",
     "pack": "npm run build && electron-builder --mac --win"
