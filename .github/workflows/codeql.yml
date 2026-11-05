@@ -1,13 +1,9 @@
-# GitHub CodeQL. Free for public repositories, no third-party token.
-# Runs on pull requests and again when they merge to main. Alerts land in
-# the Security tab. A finding does not fail the job.
+# GitHub CodeQL on every pull request. Public repos get this free.
+# A finding fails the check. main requires this check, so a request cannot merge until it is clean.
 name: code-scanning
 
 on:
   pull_request:
-    branches: [main]
-  push:
-    branches: [main]
 
 permissions:
   actions: read
@@ -34,3 +30,26 @@ jobs:
       - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
+          output: sarif-results
+          upload: always
+
+      - name: Fail the check when CodeQL finds anything
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(sarif-results/*.sarif)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::CodeQL did not produce a results file."
+            exit 1
+          fi
+          count=0
+          for file in "${files[@]}"; do
+            n="$(jq '[.runs[].results[]?] | length' "$file")"
+            count=$((count + n))
+            jq -r '.runs[].results[]? | "\(.ruleId) \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine)"' "$file"
+          done
+          if [ "$count" -gt 0 ]; then
+            echo "::error::CodeQL found ${count} finding(s). Fix them before merging."
+            exit 1
+          fi
+          echo "CodeQL found nothing."
