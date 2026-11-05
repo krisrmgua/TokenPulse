@@ -75,14 +75,17 @@
   "devDependencies": {
     "@types/node": "^22.13.10",
     "concurrently": "^9.1.2",
-    "electron": "^35.0.0",
-    "electron-builder": "^25.1.8",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
     "typescript": "^5.8.2",
     "vite": "^6.2.2",
     "wait-on": "^8.0.3"
   },
+  "overrides": {
+    "minimatch": "^11.0.4"
+  },
   "allowScripts": {
-    "electron@35.7.5": true,
+    "electron@45.2.3": true,
     "esbuild@0.25.12": true
   }
 }

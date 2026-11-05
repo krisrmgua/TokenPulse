@@ -151,7 +151,7 @@ function createPanel(): BrowserWindow {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
   void win.loadURL(panelUrl());
