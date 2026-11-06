@@ -6,6 +6,7 @@ import {
   Tray,
   ipcMain,
   nativeImage,
+  powerMonitor,
   screen,
   shell,
 } from "electron";
@@ -48,6 +49,7 @@ const WIN_TOOLTIP_MAX = 127;
 let tray: Tray | null = null;
 let panel: BrowserWindow | null = null;
 let engine: Engine;
+let watchdog: NodeJS.Timeout | null = null;
 let prefs: PrefsStore;
 let keys: OpenAIKeyStore;
 let timer: NodeJS.Timeout | undefined;
@@ -271,6 +273,18 @@ function schedule(): void {
   if (timer) clearInterval(timer);
   const minutes = prefs.get().refreshMinutes;
   timer = setInterval(() => void engine.refresh(false), minutes * 60_000);
+}
+
+/** Recover from a wedged refresh and re-paint stale tray state without a manual click. */
+function scheduleWatchdog(): void {
+  if (watchdog) clearInterval(watchdog);
+  watchdog = setInterval(() => {
+    if (engine.refreshIsHung()) {
+      engine.abandonRefresh("refresh timed out waiting on a provider");
+    }
+    // Re-evaluate DROP_AFTER / same-day freshness even when refresh is idle.
+    void updateTray();
+  }, 30_000);
 }
 
 function isSourceId(v: unknown): v is SourceId {
@@ -520,6 +534,10 @@ function boot(): void {
   wireIpc();
   panel = createPanel();
   schedule();
+  scheduleWatchdog();
+  powerMonitor.on("resume", () => {
+    void engine.refresh(true);
+  });
   void updateTray();
   void engine.refresh(true);
 }
@@ -532,6 +550,7 @@ if (!gotLock) {
   app.on("second-instance", () => togglePanel());
   app.on("before-quit", () => {
     if (timer) clearInterval(timer);
+    if (watchdog) clearInterval(watchdog);
   });
   // Tray app: stay alive with no windows.
   app.on("window-all-closed", () => {});
