@@ -645,13 +645,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 guard let threshold = candidate.observe(observation, thresholds: Prefs.activeAlertThresholds) else { allowanceLedger = candidate; continue }
                 allowanceInFlight.insert(observation.key)
                 let content = AllowanceNotification.content(observation, threshold: threshold, sound: Prefs.notificationSounds)
-                UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)) { [weak self] error in
+                let identifier = UUID().uuidString
+                UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil)) { [weak self] error in
                     DispatchQueue.main.async {
                         guard let self else { return }
                         self.allowanceInFlight.remove(observation.key)
                         if let error {
                             NSLog("TokenPulse notification delivery failed: %@", error.localizedDescription)
                         } else {
+                            AllowanceNotification.scheduleAutoDismiss(identifier: identifier)
                             self.allowanceLedger.entries[observation.key] = candidate.entries[observation.key]
                             self.allowanceLedger.save()
                             self.mission.advisories.insert(MissionAdvisory(provider: provider.name, scope: observation.window + " allowance", title: content.userInfo["advisoryTitle"] as? String ?? content.subtitle, body: content.body), at: 0)
@@ -1918,11 +1920,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         content.userInfo = ["provider": "Claude", "advisoryTitle": title]
         content.categoryIdentifier = "tokenpulse.opus"
         content.threadIdentifier = "tokenpulse-opus"
-        let req = UNNotificationRequest(identifier: "opus-share-\(key)",
+        let identifier = "opus-share-\(key)"
+        let req = UNNotificationRequest(identifier: identifier,
                                         content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req) { error in
-            if error == nil { UserDefaults.standard.set(key, forKey: "opusLastAlertDay") }
-            else { NSLog("TokenPulse notification delivery failed: %@", error!.localizedDescription) }
+            if error == nil {
+                UserDefaults.standard.set(key, forKey: "opusLastAlertDay")
+                AllowanceNotification.scheduleAutoDismiss(identifier: identifier)
+            } else { NSLog("TokenPulse notification delivery failed: %@", error!.localizedDescription) }
         }
     }
 
@@ -2015,7 +2020,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 let content = AllowanceNotification.content(sample, threshold: 15, sound: false)
                 content.subtitle = "Notification preview"
                 content.body = "Allowance alerts use this icon and include the provider, window and reset time."
-                UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "tokenpulse.preview", content: content, trigger: nil))
+                let identifier = "tokenpulse.preview"
+                UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil)) { error in
+                    if error == nil { AllowanceNotification.scheduleAutoDismiss(identifier: identifier) }
+                }
             }
         }
     }

@@ -91,13 +91,17 @@ public enum TokenPulseCLI {
                 let content = AllowanceNotification.content(sample, threshold: 15, sound: false)
                 content.subtitle = "Notification preview"
                 content.body = "Allowance alerts include the provider, window and reset time."
-                center.add(UNNotificationRequest(identifier: "tokenpulse.preview", content: content, trigger: nil)) { error in
+                let identifier = "tokenpulse.preview"
+                center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil)) { error in
                     if let error { fputs("Notification failed: \(error.localizedDescription)\n", stderr); exit(1) }
-                    print("TokenPulse test notification queued."); exit(0)
+                    print("TokenPulse test notification queued.")
+                    AllowanceNotification.scheduleAutoDismiss(identifier: identifier)
+                    // Stay alive until auto-dismiss clears the banner.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + AllowanceNotification.autoDismissSeconds + 1.5) { exit(0) }
                 }
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { fputs("Notification check timed out.\n", stderr); exit(1) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + AllowanceNotification.autoDismissSeconds + 8) { fputs("Notification check timed out.\n", stderr); exit(1) }
         app.run()
         return
     }
