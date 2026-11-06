@@ -18,7 +18,13 @@ import {
   formatTokens,
   startOfNextMonth,
 } from "./format";
-import { parseAggregations, parsePlanUsage, parseTotalSpendUSD, cursorPersonalPercentLeft } from "./sources/cursor";
+import {
+  parseAggregations,
+  parsePlanUsage,
+  parseTotalSpendUSD,
+  cursorPersonalPercentLeft,
+  sumFilteredEventCents,
+} from "./sources/cursor";
 import { parseCursorPlanIdentity, parseSandUsage } from "./sources/grokbot";
 import { parseRateLimits, parseWorkUsage, workEstimatedUSD, workTodayIsPending } from "./sources/chatgpt";
 import { parseCostPage, requestURL, totalUSD, lineItems, estimateBalance } from "./sources/openai";
@@ -138,6 +144,20 @@ test("cursor dashboard parsing", () => {
   };
   assert.equal(cursorPersonalPercentLeft(snap, 20), 75);
   assert.equal(cursorPersonalPercentLeft({ ...snap, planUsage: weekly, unifiedWeekly: true }, 20), 99);
+  const filtered = sumFilteredEventCents({
+    usageEventsDisplay: [
+      {
+        timestamp: "1000",
+        tokenUsage: { totalCents: 250 },
+      },
+      {
+        timestamp: "5000",
+        tokenUsage: { totalCents: "75.5" },
+      },
+    ],
+  });
+  assert.equal(filtered.cents, 325.5);
+  assert.equal(filtered.lastEventAt, 5000);
 });
 
 test("unified cursor plan is the shared weekly pool", () => {

@@ -124,8 +124,15 @@ export class Engine {
   private cursorLogin?: Pick<CursorToken, "login" | "reader">;
   private inFlight?: Promise<void>;
   private refreshing = false;
+  /** Wall clock when the current in-flight refresh started (for hang recovery). */
+  private refreshStartedAt?: number;
+  /** Bumped to ignore late completions after abandon/timeout. */
+  private refreshGeneration = 0;
   private updatedAt?: number;
   private listeners = new Set<() => void>();
+
+  /** Hard ceiling so a wedged provider call cannot freeze the tray forever. */
+  static readonly REFRESH_HARD_TIMEOUT_MS = 90_000;
 
   constructor(
     private readonly prefs: PrefsStore,
@@ -151,12 +158,44 @@ export class Engine {
   /** Coalesces overlapping refreshes. `force` skips the remote throttle. */
   refresh(force = false): Promise<void> {
     if (this.inFlight) {
-      return force ? this.inFlight.then(() => this.refresh(true)) : this.inFlight;
+      // A force refresh while hung abandons the stuck promise so the bar can move again.
+      if (force && this.refreshStartedAt && Date.now() - this.refreshStartedAt > 15_000) {
+        this.abandonRefresh("previous refresh abandoned");
+      } else {
+        return force ? this.inFlight.then(() => this.refresh(true)) : this.inFlight;
+      }
     }
     this.inFlight = this.doRefresh(force).finally(() => {
       this.inFlight = undefined;
+      this.refreshStartedAt = undefined;
     });
     return this.inFlight;
+  }
+
+  /**
+   * Drop a wedged in-flight refresh. The underlying fetch may still finish later;
+   * its result is ignored because `inFlight` / `refreshing` are cleared here.
+   */
+  abandonRefresh(reason = "refresh timed out"): void {
+    if (!this.refreshing && !this.inFlight) return;
+    this.refreshGeneration += 1;
+    this.inFlight = undefined;
+    this.refreshStartedAt = undefined;
+    this.refreshing = false;
+    if (this.prefs.get().sources.cursor.enabled && !this.cursor.error) {
+      this.cursor.error = reason;
+    }
+    this.updatedAt = Date.now();
+    this.emit();
+  }
+
+  /** True when a refresh has been running longer than the hard ceiling. */
+  refreshIsHung(limitMs = Engine.REFRESH_HARD_TIMEOUT_MS): boolean {
+    return (
+      this.refreshing &&
+      this.refreshStartedAt !== undefined &&
+      Date.now() - this.refreshStartedAt > limitMs
+    );
   }
 
   /** Forget cached data for a source (e.g. after a key change). */
@@ -201,18 +240,39 @@ export class Engine {
   }
 
   private async doRefresh(force: boolean): Promise<void> {
+    const gen = ++this.refreshGeneration;
     this.refreshing = true;
+    this.refreshStartedAt = Date.now();
     this.emit();
     try {
-      await this.refreshSources(force);
+      await Promise.race([
+        this.refreshSources(force, gen),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new SourceError("Refresh timed out waiting on a provider.", "network"));
+          }, Engine.REFRESH_HARD_TIMEOUT_MS);
+        }),
+      ]);
+    } catch (err) {
+      if (gen !== this.refreshGeneration) return;
+      const message = errorMessage(err);
+      // Surface on whichever work source is enabled so the tray leaves "ok".
+      if (this.prefs.get().sources.cursor.enabled) this.cursor.error = message;
+      else if (this.prefs.get().sources.claude.enabled) this.claude.error = message;
+      else if (this.prefs.get().sources.chatgpt.enabled) {
+        this.chatgptWork.error = message;
+        this.chatgptPersonal.error = message;
+      }
     } finally {
+      if (gen !== this.refreshGeneration) return;
       this.updatedAt = Date.now();
       this.refreshing = false;
+      this.refreshStartedAt = undefined;
       this.emit();
     }
   }
 
-  private async refreshSources(force: boolean): Promise<void> {
+  private async refreshSources(force: boolean, gen: number): Promise<void> {
     const p = this.prefs.get();
     const s = p.sources;
     const tasks: Promise<void>[] = [];
@@ -266,6 +326,7 @@ export class Engine {
     }
 
     await Promise.all(tasks);
+    if (gen !== this.refreshGeneration) return;
     this.publishScoreboard();
 
     const combined = this.combined(this.prefs.get());
@@ -530,6 +591,23 @@ export class Engine {
           out.lines.push({
             label: "Included usage",
             value: `${Math.round(c.planUsage.totalPercentUsed)}% of ${exactMoney(c.planUsage.limitUSD)}`,
+          });
+        }
+        if (c.pooledEnterprise) {
+          out.lines.push({
+            label: "Enterprise",
+            value: "Pooled included usage — Cursor's dollar totals can lag live sessions",
+          });
+        }
+        if (c.lastEventAt) {
+          out.lines.push({
+            label: "Last Cursor event",
+            value: displayDateTime(new Date(c.lastEventAt)),
+          });
+        } else if (c.todaySpendUSD === 0 && c.pooledEnterprise) {
+          out.lines.push({
+            label: "Today",
+            value: "No billed events in Cursor's API yet for this local day",
           });
         }
       } else if (c.unifiedWeekly) {

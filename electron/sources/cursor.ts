@@ -42,6 +42,10 @@ export interface CursorSpendSnapshot {
   planName?: string;
   /** One weekly pool shared with Grok and Grok Bot. */
   unifiedWeekly: boolean;
+  /** Enterprise pooled allowance (included-in-business usage). */
+  pooledEnterprise?: boolean;
+  /** Latest usage event timestamp from Cursor, when known. */
+  lastEventAt?: number;
   fetchedAt: number;
 }
 
@@ -138,8 +142,28 @@ async function post(
   return res.body;
 }
 
+/** Sum list-cost cents on filtered usage events (Enterprise included + on-demand). */
+export function sumFilteredEventCents(obj: unknown): { cents: number; lastEventAt?: number } {
+  if (!isRecord(obj) || !Array.isArray(obj.usageEventsDisplay)) return { cents: 0 };
+  let cents = 0;
+  let lastEventAt: number | undefined;
+  for (const row of obj.usageEventsDisplay) {
+    if (!isRecord(row)) continue;
+    const ts = optionalNumber(row, "timestamp");
+    if (ts !== undefined && (lastEventAt === undefined || ts > lastEventAt)) lastEventAt = ts;
+    const usage = isRecord(row.tokenUsage) ? row.tokenUsage : undefined;
+    if (usage) cents += numberField(usage, "totalCents");
+  }
+  return { cents, lastEventAt };
+}
+
+function sandPooledEnterprise(obj: unknown): boolean {
+  return isRecord(obj) && obj.usesPooledEnterpriseAllowance === true;
+}
+
 export class CursorClient {
   private userId: number | undefined;
+  private teamId: number | undefined;
 
   /**
    * Always scoped to the signed-in userId. Unfiltered aggregate calls return
@@ -165,38 +189,80 @@ export class CursorClient {
       period.status === "fulfilled" ? parsePlanUsage(period.value) : undefined;
     const identity =
       sand.status === "fulfilled" ? parseCursorPlanIdentity(sand.value) : undefined;
+    const pooledEnterprise =
+      sand.status === "fulfilled" ? sandPooledEnterprise(sand.value) : false;
     const unifiedWeekly =
       identity?.unified === true || (planUsage != null && !planUsage.dollarAllowance);
     const monthRows =
       month.status === "fulfilled" ? parseAggregations(month.value) : undefined;
+
+    let todaySpendUSD =
+      today.status === "fulfilled" ? parseTotalSpendUSD(today.value) : 0;
+    let totalSpendUSD = parseTotalSpendUSD(month.status === "fulfilled" ? month.value : undefined);
+    let lastEventAt: number | undefined;
+
+    // Enterprise included-in-business usage often omits totalCostCents on the
+    // aggregate "today" window while GetFilteredUsageEvents still has rows.
+    if (todaySpendUSD === 0 || pooledEnterprise) {
+      const events = await this.filteredWindow(token, userId, startOfDay(now), now).catch(
+        () => undefined,
+      );
+      if (events) {
+        if (todaySpendUSD === 0 && events.cents > 0) todaySpendUSD = events.cents / 100;
+        lastEventAt = events.lastEventAt;
+      }
+    }
+
     if (!monthRows) {
-      if (!planUsage && !identity) {
+      if (!planUsage && !identity && totalSpendUSD <= 0) {
         const reason = month.status === "rejected" ? month.reason : undefined;
         if (reason instanceof SourceError) throw reason;
         throw new SourceError("Cursor returned an unreadable usage response.");
       }
       return {
-        todaySpendUSD: 0,
-        totalSpendUSD: 0,
+        todaySpendUSD,
+        totalSpendUSD,
         byModel: [],
         userId,
         planUsage: planUsage ?? (unifiedWeekly ? planFromIdentity(identity) : undefined),
         planName: identity?.planName,
         unifiedWeekly,
+        pooledEnterprise,
+        lastEventAt,
         fetchedAt: now.getTime(),
       };
     }
     return {
-      todaySpendUSD:
-        today.status === "fulfilled" ? parseTotalSpendUSD(today.value) : 0,
-      totalSpendUSD: parseTotalSpendUSD(month.status === "fulfilled" ? month.value : undefined),
+      todaySpendUSD,
+      totalSpendUSD,
       byModel: monthRows,
       userId,
       planUsage: planUsage ?? (unifiedWeekly ? planFromIdentity(identity) : undefined),
       planName: identity?.planName,
       unifiedWeekly,
+      pooledEnterprise,
+      lastEventAt,
       fetchedAt: now.getTime(),
     };
+  }
+
+  private async filteredWindow(
+    token: string,
+    userId: number,
+    start: Date,
+    end: Date,
+  ): Promise<{ cents: number; lastEventAt?: number } | undefined> {
+    const teamId = await this.resolveTeamId(token);
+    if (teamId === undefined) return undefined;
+    const body = await post(token, "GetFilteredUsageEvents", {
+      userId,
+      teamId,
+      startDate: start.getTime(),
+      endDate: end.getTime(),
+      pageSize: 200,
+      page: 1,
+    });
+    return sumFilteredEventCents(body);
   }
 
   private async resolveUserId(token: string): Promise<number> {
@@ -210,7 +276,27 @@ export class CursorClient {
     return id;
   }
 
+  private async resolveTeamId(token: string): Promise<number | undefined> {
+    if (this.teamId !== undefined) return this.teamId;
+    try {
+      const teams = await post(token, "GetTeams", {});
+      if (!isRecord(teams) || !Array.isArray(teams.teams)) return undefined;
+      for (const row of teams.teams) {
+        if (!isRecord(row)) continue;
+        const id = optionalNumber(row, "id");
+        if (id !== undefined) {
+          this.teamId = id;
+          return id;
+        }
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }
+
   reset(): void {
     this.userId = undefined;
+    this.teamId = undefined;
   }
 }
