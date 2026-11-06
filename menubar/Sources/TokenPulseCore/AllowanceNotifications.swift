@@ -46,6 +46,18 @@ struct AllowanceAlertLedger: Codable {
 
 enum AllowanceNotification {
     static let category = "tokenpulse.allowance"
+    /// Clear the banner after this many seconds so Alert-style prefs do not leave it stuck.
+    static let autoDismissSeconds: TimeInterval = 6
+
+    /// Remove a delivered banner; getDeliveredNotifications waits for the async clear to land.
+    static func scheduleAutoDismiss(identifier: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + autoDismissSeconds) {
+            let center = UNUserNotificationCenter.current()
+            center.removeDeliveredNotifications(withIdentifiers: [identifier])
+            center.getDeliveredNotifications { _ in }
+        }
+    }
+
     static func content(_ observation: AllowanceObservation, threshold: Int, sound: Bool) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         let headline = "\(observation.provider) · \(observation.percent)% left"

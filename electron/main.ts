@@ -86,7 +86,8 @@ async function sendViaSwiftPreview(): Promise<ActionResult | null> {
   if (!bin) return null;
   try {
     const { stdout, stderr } = await execFileAsync(bin, ["--notification-preview"], {
-      timeout: 12_000,
+      // Helper stays alive through the 6s auto-dismiss window.
+      timeout: 20_000,
       encoding: "utf8",
     });
     if ((stdout || "").includes("queued") || (stdout || "").includes("preview")) {
@@ -455,6 +456,13 @@ function wireIpc(): void {
         };
         activeNotification!.once("show", () => done(true));
         activeNotification!.show();
+        setTimeout(() => {
+          try {
+            activeNotification?.close();
+          } catch {
+            /* already gone */
+          }
+        }, 6000);
         setTimeout(() => done(false), 1200);
       });
       if (shown) return { ok: true, message: "Test notification sent." };
