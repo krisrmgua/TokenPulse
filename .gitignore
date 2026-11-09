@@ -28,11 +28,5 @@ aggregator/*.db
 .env.*
 !.env.example
 
-# Electron / Node
-node_modules/
-dist/
-dist-electron/
-release/
-
 # macOS
 .DS_Store
