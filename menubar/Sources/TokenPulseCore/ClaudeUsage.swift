@@ -166,8 +166,9 @@ enum ClaudeUsageParse {
 
 /// Reads subscription quota through the official Claude CLI itself. TokenPulse
 /// intentionally does not extract Claude OAuth credentials or call the private
-/// `/api/oauth/usage` endpoint. `/usr/bin/script` supplies the pseudo-terminal
-/// required by Claude's interactive `/usage` command.
+/// `/api/oauth/usage` endpoint. We open the pseudo-terminal ourselves because
+/// Claude's interactive `/usage` command needs one, and it must be sized up
+/// front or Claude clips the Resets and weekly rows.
 final class ClaudeUsageClient {
     private static let staleAfter: TimeInterval = 30 * 60
     private var minRefreshInterval: TimeInterval
@@ -259,22 +260,38 @@ final class ClaudeUsageClient {
         guard let claude = Self.claudeExecutable() else { return .failure(.claudeNotFound) }
         let workDir = Self.prepareUsageWorkingDirectory()
 
+        // A new pty has no size, so Claude lays /usage out for a tiny screen and
+        // clips the Resets and weekly rows. Size it to a real terminal up front.
+        var size = winsize(ws_row: 60, ws_col: 160, ws_xpixel: 0, ws_ypixel: 0)
+        var masterFD: Int32 = -1
+        var slaveFD: Int32 = -1
+        guard openpty(&masterFD, &slaveFD, nil, nil, &size) == 0 else {
+            return .failure(.launchFailed)
+        }
+        let terminal = FileHandle(fileDescriptor: slaveFD, closeOnDealloc: false)
+        let master = FileHandle(fileDescriptor: masterFD, closeOnDealloc: false)
+
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/script")
-        process.arguments = ["-q", "/dev/null", claude]
+        process.executableURL = URL(fileURLWithPath: claude)
         process.currentDirectoryURL = workDir
         var environment = ProcessInfo.processInfo.environment
         environment["TERM"] = "xterm-256color"
         environment["NO_COLOR"] = "1"
         environment["DISABLE_AUTOUPDATER"] = "1"
         process.environment = environment
-
-        let input = Pipe()
-        let output = Pipe()
-        process.standardInput = input
-        process.standardOutput = output
-        process.standardError = output
-        do { try process.run() } catch { return .failure(.launchFailed) }
+        process.standardInput = terminal
+        process.standardOutput = terminal
+        process.standardError = terminal
+        do {
+            try process.run()
+        } catch {
+            close(masterFD)
+            close(slaveFD)
+            return .failure(.launchFailed)
+        }
+        // The child owns the slave end now. Closing ours lets reads on the master
+        // see EOF once Claude exits.
+        close(slaveFD)
 
         let semaphore = DispatchSemaphore(value: 0)
         let lock = NSLock()
@@ -283,7 +300,7 @@ final class ClaudeUsageClient {
         var signalled = false
         var usageSent = false
         var trustAccepted = false
-        output.fileHandleForReading.readabilityHandler = { handle in
+        master.readabilityHandler = { handle in
             let chunk = handle.availableData
             guard !chunk.isEmpty else { return }
             lock.lock()
@@ -296,7 +313,7 @@ final class ClaudeUsageClient {
                lower.contains("trust this folder") || lower.contains("quick safety check") {
                 trustAccepted = true
                 // Default selection is "No, exit"; move down to Yes and confirm.
-                try? input.fileHandleForWriting.write(contentsOf: Data("\u{001B}[B\r".utf8))
+                try? master.write(contentsOf: Data("\u{001B}[B\r".utf8))
             }
             if let snapshot = ClaudeUsageParse.snapshot(
                 from: raw, now: now, claudePath: claude),
@@ -318,25 +335,21 @@ final class ClaudeUsageClient {
             usageSent = true
             lock.unlock()
             guard !already, process.isRunning else { return }
-            try? input.fileHandleForWriting.write(contentsOf: Data("/usage\r".utf8))
+            try? master.write(contentsOf: Data("/usage\r".utf8))
         }
         let wait = semaphore.wait(timeout: .now() + 28)
-        output.fileHandleForReading.readabilityHandler = nil
-        try? input.fileHandleForWriting.close()
-        if process.isRunning { process.interrupt() }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-            if process.isRunning { process.terminate() }
-        }
-        process.waitUntilExit()
-        // Non-blocking drain after exit — never readDataToEndOfFile while the
-        // Claude TUI is still alive (that hung the whole fetch and left the
-        // menu stuck on session-only after a partial parse).
-        let drained = output.fileHandleForReading.availableData
+        master.readabilityHandler = nil
+        Self.stopProcess(process)
+        // Non-blocking drain after exit. A blocking read on the pty master
+        // hangs while anything still holds the slave open, which is why the
+        // old readDataToEndOfFile-style drain left the menu stuck.
+        let drained = Self.drainAvailable(masterFD)
         if !drained.isEmpty {
             lock.lock()
             buffered.append(drained)
             lock.unlock()
         }
+        close(masterFD)
 
         lock.lock()
         let raw = Self.lossyUTF8(buffered)
@@ -353,6 +366,39 @@ final class ClaudeUsageClient {
             return .failure(.notSignedIn)
         }
         return wait == .timedOut ? .failure(.timedOut) : .failure(.invalidResponse)
+    }
+
+    /// Ends the Claude TUI: interrupt, then terminate, then kill if it still runs.
+    /// Claude does not always exit on SIGINT, so an unbounded wait can hang.
+    private static func stopProcess(_ process: Process) {
+        guard process.isRunning else { return }
+        process.interrupt()
+        waitForExit(process, seconds: 2)
+        if process.isRunning { process.terminate() }
+        waitForExit(process, seconds: 1)
+        if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        process.waitUntilExit()
+    }
+
+    private static func waitForExit(_ process: Process, seconds: TimeInterval) {
+        let deadline = Date().addingTimeInterval(seconds)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+    }
+
+    /// Reads whatever is buffered on the pty master without blocking.
+    private static func drainAvailable(_ fd: Int32) -> Data {
+        let flags = fcntl(fd, F_GETFL)
+        _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+        var out = Data()
+        var buffer = [UInt8](repeating: 0, count: 8192)
+        while true {
+            let count = read(fd, &buffer, buffer.count)
+            if count <= 0 { break }
+            out.append(contentsOf: buffer[0..<count])
+        }
+        return out
     }
 
     private static func lossyUTF8(_ data: Data) -> String {
