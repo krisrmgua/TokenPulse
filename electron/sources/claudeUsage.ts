@@ -327,9 +327,12 @@ export function fetchClaudeUsage(now = new Date()): Promise<ClaudeUsageSnapshot>
  * A Python pty is a real terminal, which is what Claude's `/usage` screen needs.
  */
 const USAGE_PTY = String.raw`
-import os, pty, re, select, signal, sys, time
+import fcntl, os, pty, re, select, signal, struct, sys, termios, time
 claude, cwd = sys.argv[1], sys.argv[2]
 master, slave = pty.openpty()
+# A new pty has no size, so Claude Code lays out /usage for a tiny screen and
+# clips the Resets and weekly rows. Give it a terminal-sized window first.
+fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 60, 160, 0, 0))
 env = os.environ.copy()
 env["TERM"] = "xterm-256color"
 env["NO_COLOR"] = "1"
