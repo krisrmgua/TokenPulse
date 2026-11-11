@@ -725,6 +725,56 @@ test("shared pill joins providers and labels only the extra rings", () => {
   assert.ok(letters.width < twoRings.width);
 });
 
+test("divider weekly text is centered in the capsule", async () => {
+  const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+  const rendered = renderStatusBarPng(
+    [
+      {
+        id: "chatgpt",
+        metrics: [{ label: "W", value: "0%", percent: 0, color: [246, 120, 120] }],
+        stale: false,
+        allowanceEmpty: true,
+        design: "divider",
+      },
+    ],
+    { darkBarBackground: true, menuBarScale: 100 },
+  );
+  const img = await loadImage(rendered.png);
+  const canvas = createCanvas(img.width, img.height);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, img.width, img.height).data;
+  let capTop = img.height;
+  let capBot = 0;
+  let textTop = img.height;
+  let textBot = 0;
+  let textN = 0;
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const i = (y * img.width + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3];
+      if (a < 200) continue;
+      if (r > 50 && r < 110 && g < 50 && b < 50) {
+        if (y < capTop) capTop = y;
+        if (y > capBot) capBot = y;
+      }
+      if (r > 180 && g > 140) {
+        textN++;
+        if (y < textTop) textTop = y;
+        if (y > textBot) textBot = y;
+      }
+    }
+  }
+  assert.ok(textN > 20);
+  const capMid = (capTop + capBot) / 2;
+  const textMid = (textTop + textBot) / 2;
+  assert.ok(Math.abs(textMid - capMid) <= 2, `text ${textMid} capsule ${capMid}`);
+  assert.ok(Math.abs(textTop - capTop - (capBot - textBot)) <= 4);
+});
+
 test("divider stays text and baseline keeps the underline meter", () => {
   const metric = {
     label: "5H",
