@@ -77,6 +77,15 @@ function measure(ctx: SKRSContext2D, text: string, font: string): number {
   return Math.ceil(ctx.measureText(text).width);
 }
 
+/** Alphabetic y that centers the painted glyphs on `mid` (device px). Caps sit high in the em box. */
+function inkBaseline(ctx: SKRSContext2D, text: string, mid: number): number {
+  const ink = ctx.measureText(text);
+  const ascent = ink.actualBoundingBoxAscent || 0;
+  const descent = ink.actualBoundingBoxDescent || 0;
+  if (ascent <= 0) return mid;
+  return mid + (ascent - descent) / 2;
+}
+
 let artworkRootOverride: string | null = null;
 
 /** Preview / tests: point at repo Artwork without Electron `app`. */
@@ -539,18 +548,27 @@ export function renderStatusBarPng(
         cursor += 21 * k;
       }
 
-      // Top-origin; 16/15 in 28pt — 5 was high, 8 was low; land in between with the icon.
-      // Baseline text sits lower so it meets the underline meter.
-      const rowY = y0 + (b.design === "baseline" ? 8 : 6.5) * k;
-      const labelOffset = (b.design === "baseline" ? -1 : 1) * k;
-      const valueOffset = (b.design === "baseline" ? -2 : 0.5) * k;
-      ctx.textBaseline = "top";
-      ctx.fillStyle = LABEL;
-      ctx.font = labelFontPx;
-      ctx.fillText(m.label, pt(cursor), pt(rowY + labelOffset));
-      ctx.fillStyle = color;
-      ctx.font = valueFontPx;
-      ctx.fillText(m.value, pt(cursor + labelW + lvGap), pt(rowY + valueOffset));
+      // Baseline text stays high so it meets the underline meter.
+      // Divider, rings, and focus center the painted glyphs on the capsule midline.
+      if (b.design === "baseline") {
+        const rowY = y0 + 8 * k;
+        ctx.textBaseline = "top";
+        ctx.fillStyle = LABEL;
+        ctx.font = labelFontPx;
+        ctx.fillText(m.label, pt(cursor), pt(rowY - 1 * k));
+        ctx.fillStyle = color;
+        ctx.font = valueFontPx;
+        ctx.fillText(m.value, pt(cursor + labelW + lvGap), pt(rowY - 2 * k));
+      } else {
+        const mid = pt(y0 + bh / 2);
+        ctx.textBaseline = "alphabetic";
+        ctx.fillStyle = LABEL;
+        ctx.font = labelFontPx;
+        ctx.fillText(m.label, pt(cursor), inkBaseline(ctx, m.label, mid));
+        ctx.fillStyle = color;
+        ctx.font = valueFontPx;
+        ctx.fillText(m.value, pt(cursor + labelW + lvGap), inkBaseline(ctx, m.value, mid));
+      }
 
 
       // Baseline is the underline meter. Divider stays text plus the vertical rule.
