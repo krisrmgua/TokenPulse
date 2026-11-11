@@ -470,8 +470,22 @@ export function renderStatusBarPng(
       const color = rgb(m.color);
 
       if (isStacked(b.design)) {
+        // One compact-stack row (a lone W 0%) centers on the capsule, same as the icon.
+        // Two or more rows keep the 12pt stride. Lanes and segments keep that stride so the track stays put.
+        if (b.metrics.length === 1 && b.design === "stack") {
+          const mid = pt(y0 + bh / 2);
+          const valueX = cursor + labelColW + 5 * k;
+          ctx.textBaseline = "alphabetic";
+          ctx.fillStyle = LABEL;
+          ctx.font = labelFontPx;
+          ctx.fillText(m.label, pt(cursor), inkBaseline(ctx, m.label, mid));
+          ctx.fillStyle = color;
+          ctx.font = valueFontPx;
+          ctx.fillText(m.value, pt(valueX), inkBaseline(ctx, m.value, mid));
+          return;
+        }
         // Top-origin; value sits 1pt above label. Stride 12 + inset 3 → ~2pt pad in 28pt chrome.
-        const rowY = b.metrics.length === 1 ? y0 + 7 * k : y0 + mi * 12 * k + 3 * k;
+        const rowY = y0 + mi * 12 * k + 3 * k;
         ctx.textBaseline = "top";
         ctx.fillStyle = LABEL;
         ctx.font = labelFontPx;

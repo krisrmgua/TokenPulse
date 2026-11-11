@@ -725,7 +725,10 @@ test("shared pill joins providers and labels only the extra rings", () => {
   assert.ok(letters.width < twoRings.width);
 });
 
-test("divider weekly text is centered in the capsule", async () => {
+async function capsuleTextGaps(
+  design: "divider" | "stack",
+  menuBarScale: number,
+): Promise<{ textN: number; capMid: number; textMid: number; topGap: number; botGap: number }> {
   const { createCanvas, loadImage } = await import("@napi-rs/canvas");
   const rendered = renderStatusBarPng(
     [
@@ -734,10 +737,10 @@ test("divider weekly text is centered in the capsule", async () => {
         metrics: [{ label: "W", value: "0%", percent: 0, color: [246, 120, 120] }],
         stale: false,
         allowanceEmpty: true,
-        design: "divider",
+        design,
       },
     ],
-    { darkBarBackground: true, menuBarScale: 100 },
+    { darkBarBackground: true, menuBarScale },
   );
   const img = await loadImage(rendered.png);
   const canvas = createCanvas(img.width, img.height);
@@ -768,11 +771,28 @@ test("divider weekly text is centered in the capsule", async () => {
       }
     }
   }
-  assert.ok(textN > 20);
-  const capMid = (capTop + capBot) / 2;
-  const textMid = (textTop + textBot) / 2;
-  assert.ok(Math.abs(textMid - capMid) <= 2, `text ${textMid} capsule ${capMid}`);
-  assert.ok(Math.abs(textTop - capTop - (capBot - textBot)) <= 4);
+  return {
+    textN,
+    capMid: (capTop + capBot) / 2,
+    textMid: (textTop + textBot) / 2,
+    topGap: textTop - capTop,
+    botGap: capBot - textBot,
+  };
+}
+
+test("weekly text is centered in a one-line capsule", async () => {
+  for (const [design, scale] of [
+    ["divider", 100],
+    ["stack", 85],
+  ] as const) {
+    const gaps = await capsuleTextGaps(design, scale);
+    assert.ok(gaps.textN > 20, design);
+    assert.ok(
+      Math.abs(gaps.textMid - gaps.capMid) <= 2,
+      `${design} text ${gaps.textMid} capsule ${gaps.capMid}`,
+    );
+    assert.ok(Math.abs(gaps.topGap - gaps.botGap) <= 4, `${design} ${gaps.topGap} vs ${gaps.botGap}`);
+  }
 });
 
 test("divider stays text and baseline keeps the underline meter", () => {
