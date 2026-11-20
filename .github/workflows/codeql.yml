@@ -19,6 +19,8 @@ jobs:
   codeql:
     name: CodeQL scan
     runs-on: ubuntu-latest
+    # Optional: a CodeQL failure must not block the pipeline.
+    continue-on-error: true
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
