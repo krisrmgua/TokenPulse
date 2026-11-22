@@ -231,7 +231,9 @@ echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zprofile
 
 This is an ad-hoc local build, not notarized. If macOS blocks it, right-click `TokenPulse.app` → **Open** → **Open**, or allow it under **System Settings → Privacy & Security**.
 
-Reinstalling changes the ad-hoc signature, so macOS may ask for your Mac password the next time TokenPulse reads **Cursor Safe Storage** from the login Keychain. Choose **Always Allow**. That lasts until the next reinstall.
+### Cursor login password
+
+The first time TokenPulse reads an encrypted Cursor login, macOS asks for your Mac password. The prompt is for `/usr/bin/security` reading the **Cursor Safe Storage** item in the login Keychain, not for the TokenPulse app. Choose **Allow**. The derived key stays in memory until you quit, so the prompt is once per launch. **Always Allow** adds `/usr/bin/security` to that item's access list, and any later script running as you can read the password with no prompt.
 
 ---
 
